@@ -1,0 +1,2445 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="screen-orientation" content="portrait">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Le Sceau d'Azrathys</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+:root{
+  --gold:#d4722a;--bg-dark:#080608;--bg-mid:#100a0e;
+  --stone:#2a1a18;--stone-light:#3d2820;--blood:#6a0a5a;--blood-bright:#aa1188;
+  --text:#e8cfc0;--text-dim:#8a6a60;--blue:#4a90d9;--green:#4caf50;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-dark);color:var(--text);font-family:'Crimson Text',serif;}
+#app{width:100%;height:100%;position:relative;}
+.screen{display:none;width:100%;height:100%;position:absolute;top:0;left:0;overflow:hidden;}
+.screen.active{display:flex;flex-direction:column;align-items:center;justify-content:center;}
+
+/* TITLE */
+#title-screen{background:radial-gradient(ellipse at 50% 30%,#1a0a0f 0%,#0a0608 70%);padding:1.5rem;text-align:center;}
+.title-crest{font-size:clamp(2.5rem,10vw,5rem);filter:drop-shadow(0 0 24px rgba(160,0,220,0.7));color:#9900cc;text-shadow:0 0 40px rgba(160,0,220,0.5);}
+.title-main{font-family:'Cinzel',serif;font-size:clamp(1.6rem,7vw,3.5rem);font-weight:900;color:var(--gold);text-shadow:0 0 30px rgba(201,162,39,0.4);letter-spacing:3px;}
+.title-sub{font-family:'Cinzel',serif;font-size:clamp(0.55rem,2.2vw,0.9rem);color:var(--text-dim);letter-spacing:4px;margin-bottom:1.5rem;text-transform:uppercase;}
+.title-lore{font-style:italic;color:var(--text-dim);max-width:480px;text-align:center;line-height:1.5;margin-bottom:2rem;font-size:clamp(0.8rem,2.8vw,1rem);padding:0 0.5rem;}
+.btn{font-family:'Cinzel',serif;padding:0.9rem 2rem;cursor:pointer;border:1px solid var(--gold);background:linear-gradient(180deg,#1f1208 0%,#0d0804 100%);color:var(--gold);font-size:clamp(0.75rem,2.8vw,1rem);letter-spacing:2px;text-transform:uppercase;transition:all 0.15s;min-height:50px;touch-action:manipulation;}
+.btn:active{transform:scale(0.96);}
+
+/* CASTLE */
+#castle-screen{background:var(--bg-dark);flex-direction:column;justify-content:flex-start;}
+.castle-tabs{display:flex;width:100%;border-bottom:1px solid var(--stone-light);flex-shrink:0;background:var(--bg-mid);}
+.tab-btn{flex:1;padding:0.65rem 0.3rem;font-family:'Cinzel',serif;font-size:clamp(0.55rem,2.2vw,0.75rem);color:var(--text-dim);background:none;border:none;cursor:pointer;letter-spacing:1px;text-transform:uppercase;border-bottom:2px solid transparent;transition:all 0.2s;touch-action:manipulation;}
+.tab-btn.active{color:var(--gold);border-bottom-color:var(--gold);}
+.tab-content{display:none;flex:1;overflow-y:auto;padding:0.9rem;width:100%;-webkit-overflow-scrolling:touch;}
+.tab-content.active{display:block;}
+.castle-footer{padding:0.7rem;border-top:1px solid var(--stone);background:var(--bg-mid);width:100%;flex-shrink:0;}
+.section-title{font-family:'Cinzel',serif;color:var(--gold);font-size:0.8rem;letter-spacing:2px;border-bottom:1px solid var(--stone-light);padding-bottom:0.35rem;margin-bottom:0.7rem;}
+.gold-display{font-family:'Cinzel',serif;font-size:1.1rem;color:var(--gold);margin-bottom:0.9rem;}
+.upgrade-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;}
+.upgrade-card{background:var(--stone);border:1px solid var(--stone-light);padding:0.55rem;cursor:pointer;min-height:68px;touch-action:manipulation;}
+.upgrade-card:active{border-color:var(--gold);background:var(--stone-light);}
+.upgrade-card.maxed{opacity:0.5;pointer-events:none;}
+.upgrade-name{font-family:'Cinzel',serif;font-size:0.68rem;color:var(--text);}
+.upgrade-level{font-size:0.68rem;color:var(--text-dim);margin:0.12rem 0;}
+.upgrade-cost{font-size:0.72rem;color:var(--gold);}
+.upgrade-bars{display:flex;gap:2px;margin-top:0.3rem;}
+.upgrade-bar{height:3px;flex:1;background:var(--stone-light);border-radius:2px;}
+.upgrade-bar.filled{background:var(--gold);}
+.heirs-list{display:flex;flex-direction:column;gap:0.55rem;}
+.heir-card{background:var(--stone);border:2px solid var(--stone-light);padding:0.75rem;cursor:pointer;touch-action:manipulation;}
+.heir-card.selected{border-color:var(--gold);background:var(--stone-light);}
+.heir-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;}
+.heir-name{font-family:'Cinzel',serif;font-size:0.85rem;color:var(--text);}
+.heir-class{font-size:0.72rem;color:var(--gold);}
+.heir-stats{display:flex;gap:0.6rem;font-size:0.7rem;color:var(--text-dim);margin-bottom:0.35rem;flex-wrap:wrap;}
+
+/* GAME */
+#game-screen{flex-direction:column;background:#000;justify-content:flex-start;}
+#game-screen.active{display:flex;}
+#game-ui{display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0.5rem;background:rgba(0,0,0,0.92);border-bottom:1px solid var(--stone);height:44px;flex-shrink:0;gap:0.4rem;}
+.ui-left{display:flex;align-items:center;gap:0.4rem;flex:1;overflow:hidden;min-width:0;}
+.ui-hero-name{font-family:'Cinzel',serif;font-size:0.6rem;color:var(--gold);white-space:nowrap;flex-shrink:0;}
+.hp-bar-wrap{display:flex;align-items:center;gap:2px;flex-shrink:0;}
+.bar-outer{width:clamp(40px,10vw,75px);height:7px;background:var(--stone);border:1px solid var(--stone-light);border-radius:2px;overflow:hidden;}
+.bar-inner{height:100%;border-radius:2px;transition:width 0.15s;}
+.bar-inner.hp{background:linear-gradient(90deg,var(--blood) 0%,var(--blood-bright) 100%);}
+.bar-inner.mp{background:linear-gradient(90deg,#1a3a8a 0%,var(--blue) 100%);}
+.ui-weapon{font-size:0.55rem;color:var(--text-dim);flex-shrink:0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ui-right{font-size:0.6rem;color:var(--text-dim);display:flex;gap:0.35rem;flex-shrink:0;align-items:center;}
+.ui-right span{color:var(--gold);}
+
+
+#canvas-wrap{flex:1;position:relative;overflow:hidden;}
+canvas{display:block;}
+
+/* TOUCH CONTROLS */
+#touch-controls{position:absolute;bottom:0;left:0;right:0;height:160px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 12px 14px;pointer-events:none;}
+#joystick-zone{width:120px;height:120px;position:relative;pointer-events:all;flex-shrink:0;touch-action:none;}
+#joystick-bg{width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.1);position:absolute;top:10px;left:10px;}
+#joystick-knob{width:42px;height:42px;border-radius:50%;background:rgba(201,162,39,0.45);border:2px solid rgba(201,162,39,0.75);position:absolute;top:39px;left:39px;}
+#action-buttons{display:flex;flex-direction:column;gap:8px;pointer-events:all;align-items:flex-end;}
+.act-row{display:flex;gap:8px;justify-content:flex-end;}
+.act-btn{border-radius:50%;border:2px solid;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);user-select:none;-webkit-user-select:none;touch-action:none;transition:transform 0.07s;}
+.act-btn.pressed{transform:scale(0.84);}
+#btn-jump{width:52px;height:52px;border-color:rgba(255,255,255,0.35);background:rgba(255,255,255,0.07);font-size:0.6rem;font-family:'Cinzel',serif;color:rgba(255,255,255,0.65);}
+#btn-pickup{width:46px;height:46px;border-color:rgba(201,162,39,0.55);background:rgba(201,162,39,0.1);}
+#btn-atk{width:60px;height:60px;border-color:rgba(204,60,60,0.75);background:rgba(180,30,30,0.2);}
+#btn-special{width:46px;height:46px;border-color:rgba(74,144,217,0.7);background:rgba(30,80,180,0.2);font-size:0.9rem;}
+
+/* DEATH */
+#death-screen{background:rgba(0,0,0,0.95);padding:1.2rem;}
+.death-title{font-family:'Cinzel',serif;font-size:clamp(1.8rem,7vw,3rem);color:var(--blood-bright);text-shadow:0 0 30px rgba(204,17,17,0.5);margin-bottom:0.7rem;text-align:center;}
+.death-lore{font-style:italic;color:var(--text-dim);margin-bottom:1.2rem;font-size:clamp(0.82rem,2.8vw,1rem);text-align:center;padding:0 1rem;}
+.death-stats{background:var(--stone);border:1px solid var(--stone-light);padding:0.9rem 1.2rem;margin-bottom:1.2rem;width:100%;max-width:360px;}
+.death-stat{display:flex;justify-content:space-between;gap:1.5rem;margin-bottom:0.3rem;font-size:0.88rem;}
+.death-stat .val{color:var(--gold);font-family:'Cinzel',serif;}
+.death-gold{font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);margin-bottom:1.2rem;text-align:center;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:var(--bg-dark);}::-webkit-scrollbar-thumb{background:var(--stone-light);}
+
+/* ── ÉCRAN DE ROTATION ── */
+#rotate-screen{
+  display:none;position:fixed;inset:0;z-index:9999;
+  background:var(--bg-dark);
+  flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;
+  color:var(--text);font-family:'Cinzel',serif;text-align:center;padding:2rem;
+}
+#rotate-screen.show{display:flex;}
+.rotate-icon{font-size:3.5rem;animation:spin 2s ease-in-out infinite alternate;}
+@keyframes spin{from{transform:rotate(-15deg);}to{transform:rotate(15deg);}}
+.rotate-msg{font-size:clamp(0.9rem,4vw,1.3rem);color:var(--gold);letter-spacing:2px;}
+.rotate-sub{font-size:clamp(0.65rem,2.5vw,0.85rem);color:var(--text-dim);}
+
+/* ── LAYOUT PAYSAGE ── */
+/* HUD latéral gauche — en mode paysage on garde le HUD en haut mais compact */
+#game-ui{height:36px;padding:0.2rem 0.6rem;}
+.bar-outer{width:clamp(55px,12vw,110px);height:6px;}
+
+/* Contrôles tactiles repositionnés pour paysage : plus petits, mieux placés */
+#touch-controls{height:130px;padding:0 10px 10px;}
+#joystick-zone{width:100px;height:100px;}
+#joystick-bg{width:84px;height:84px;top:8px;left:8px;}
+#joystick-knob{width:34px;height:34px;top:33px;left:33px;}
+#btn-jump{width:44px;height:44px;}
+#btn-atk{width:54px;height:54px;}
+#btn-special{width:40px;height:40px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- TITLE -->
+<div id="title-screen" class="screen active">
+  <div class="title-crest">𖤐</div>
+  <div class="title-main">LE SCEAU D'AZRATHYS</div>
+  <div class="title-sub">Chaque mort retarde l'éveil. Descends. Sacrifie-toi.</div>
+  <div class="title-lore">Au cœur d'un donjon de briques millénaires, Azrathys — amalgame d'âmes corrompues — ronge son sceau. Des héros descendent, sachant qu'ils ne remonteront peut-être pas. Chaque ennemi abattu l'affaiblit. Chaque sacrifice compte.</div>
+  <button class="btn" id="btn-start-title">Commencer</button>
+</div>
+
+<!-- CASTLE -->
+<div id="castle-screen" class="screen">
+  <div class="castle-tabs">
+    <button class="tab-btn active" id="tab-btn-upgrades">Donjon</button>
+    <button class="tab-btn" id="tab-btn-heirs">Héritiers</button>
+  </div>
+  <div id="tab-upgrades" class="tab-content active">
+    <div class="gold-display"><span id="gold-display">0</span> éclats</div>
+    <div class="section-title">RENFORCEMENTS</div>
+    <div class="upgrade-grid" id="upgrade-grid"></div>
+    <div class="section-title" style="margin-top:0.6rem;">VOCATIONS</div>
+    <p style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.7rem;font-style:italic;">Recruter de nouvelles vocations avec les éclats récoltés.</p>
+    <div id="class-unlock-list"></div>
+  </div>
+  <div id="tab-heirs" class="tab-content">
+    <div class="section-title">CHOISISSEZ VOTRE SACRIFIÉ</div>
+    <p style="font-size:0.72rem;color:var(--text-dim);margin-bottom:0.7rem;font-style:italic;">Deux âmes se portent volontaires. Une seule descendra.</p>
+    <div class="heirs-list" id="heirs-list"></div>
+  </div>
+  <div class="castle-footer">
+    <button class="btn" style="width:100%" id="btn-enter-castle">Descendre dans le donjon</button>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game-screen" class="screen">
+  <div id="game-ui">
+    <div class="ui-left">
+      <div class="ui-hero-name" id="ui-hero-name">Héros</div>
+      <div class="hp-bar-wrap">
+        <div class="bar-outer"><div class="bar-inner hp" id="hp-bar" style="width:100%"></div></div>
+      </div>
+      <div class="hp-bar-wrap">
+        <div class="bar-outer"><div class="bar-inner mp" id="mp-bar" style="width:100%"></div></div>
+      </div>
+      <div class="ui-weapon" id="ui-weapon">Épée</div>
+    </div>
+    <div class="ui-right">
+      <span id="ui-enemies" style="color:var(--blood-bright)">0</span>&nbsp;<span id="ui-gold" style="color:var(--gold)">0</span>&nbsp;<span id="ui-rooms" style="color:var(--text-dim)">1</span>&nbsp;<button id="btn-quit-game" style="font-size:0.55rem;padding:2px 6px;background:rgba(80,0,0,0.7);border:1px solid #660000;color:#cc8888;border-radius:2px;cursor:pointer;font-family:Cinzel,serif;letter-spacing:1px;touch-action:manipulation;">✕ menu</button>
+    </div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="game-canvas"></canvas>
+    <canvas id="map-canvas" style="position:absolute;top:48px;right:6px;width:110px;height:90px;border:1px solid rgba(201,162,39,0.3);background:rgba(0,0,0,0.75);border-radius:3px;pointer-events:none;"></canvas>
+    <div id="touch-controls">
+      <div id="joystick-zone"><div id="joystick-bg"></div><div id="joystick-knob"></div></div>
+      <div id="action-buttons">
+        <div class="act-row">
+          <div class="act-btn" id="btn-special"></div>
+          <div class="act-btn" id="btn-jump"></div>
+        </div>
+        <div class="act-row">
+          <div class="act-btn" id="btn-pickup"></div>
+          <div class="act-btn" id="btn-atk"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DEATH -->
+<div id="death-screen" class="screen">
+  <div class="death-title">CONSUMÉ</div>
+  <div class="death-lore" id="death-lore-text">Votre âme rejoint les profondeurs. Azrathys est affaibli.</div>
+  <div class="death-stats">
+    <div class="death-stat"><span>Sacrifié</span><span class="val" id="ds-name">-</span></div>
+    <div class="death-stat"><span>Classe</span><span class="val" id="ds-class">-</span></div>
+    <div class="death-stat"><span>Temps</span><span class="val" id="ds-time">-</span></div>
+    <div class="death-stat"><span>Salles traversées</span><span class="val" id="ds-rooms">0</span></div>
+    <div class="death-stat"><span>Servants abattus</span><span class="val" id="ds-kills">0</span></div>
+    <div class="death-stat"><span>Dernière arme</span><span class="val" id="ds-weapon">-</span></div>
+  </div>
+  <div class="death-gold">+<span id="ds-gold">0</span> éclats récupérés des profondeurs</div>
+  <button class="btn" id="btn-start-death">Envoyer un autre</button>
+</div>
+
+<div id="victory-screen" class="screen">
+  <div class="death-title" style="color:#dd00ff;font-size:1.4rem;text-shadow:0 0 20px #9900cc;">AZRATHYS VAINCU</div>
+  <div class="death-lore" id="victory-lore">Le sceau est brisé. Azrathys se dissout dans l'oubli éternel.</div>
+  <div class="death-stats">
+    <div class="death-stat"><span>Sacrifié</span><span class="val" id="vs-name">-</span></div>
+    <div class="death-stat"><span>Classe</span><span class="val" id="vs-class">-</span></div>
+    <div class="death-stat"><span>Temps de run</span><span class="val" id="vs-time">-</span></div>
+    <div class="death-stat"><span>Salles traversées</span><span class="val" id="vs-rooms">0</span></div>
+    <div class="death-stat"><span>Servants abattus</span><span class="val" id="vs-kills">0</span></div>
+    <div class="death-stat"><span>Éclats récoltés</span><span class="val" id="vs-gold">0</span></div>
+    <div class="death-stat"><span>Boss vaincus</span><span class="val" id="vs-bosses">0</span></div>
+  </div>
+  <button class="btn" id="btn-victory-menu" style="margin-top:1rem;border-color:#9900cc;color:#cc88ff;">Retourner au Donjon</button>
+</div>
+
+
+<!-- ROTATION SCREEN -->
+<div id="rotate-screen">
+  <div class="rotate-icon">📱</div>
+  <div class="rotate-msg">TOURNEZ VOTRE APPAREIL</div>
+  <div class="rotate-sub">Ce jeu se joue en mode portrait</div>
+</div>
+
+</div>
+<script>
+
+
+// ============================================================
+// ============================================================
+// MODE TEST — mettre à false pour désactiver
+// ============================================================
+const TEST_MODE = false;
+// En mode test :
+//   - Éclats : 99999
+//   - Toutes classes/améliorations au max
+//   - Arme légendaire aléatoire
+//   - Invincible (dégâts réduits à 0)
+//   - Boss HP divisé par 5
+// ============================================================
+
+// SPRITE SYSTEM — PNG optionnels, fallback canvas automatique
+// Déposez vos fichiers dans sprites/ à côté du HTML.
+// Héros orientés vers la droite (ctx.scale(-1,1) appliqué auto).
+// ============================================================
+
+// Sprites — chargement au démarrage, fallback cube coloré
+const SPRITE_KEYS = [
+  'hero_chevalier','hero_mage','hero_voleur','hero_barbare','hero_archer','hero_paladin',
+  'enemy_skeleton','enemy_spider','enemy_crossbow','enemy_mage',
+  'enemy_bat','enemy_dragon','enemy_golem','enemy_bomblob',
+  'wall_stone','platform','chest_gold','chest_heal',
+  'weapon_sword','weapon_dagger','weapon_spear','weapon_bow','weapon_staff',
+  'weapon_excalibur','weapon_godspear','weapon_starbow','weapon_phantomblade','weapon_shadowblade','weapon_spellsword','weapon_voidstaff',
+  'boss_guardian','boss_executioner','boss_archivist','boss_windknight','boss_flesh','boss_azrathys'
+];
+const SPRITES = {};
+function loadSprites(cb) {
+  let n=SPRITE_KEYS.length, done=0;
+  for(const k of SPRITE_KEYS){
+    const img=new Image();
+    img.onload=img.onerror=()=>{ SPRITES[k]=img; if(++done>=n) cb(); };
+    img.src='sprites/'+k+'.png';
+  }
+}
+
+// Dessine un sprite PNG — fallback : cube coloré
+function drawSprite(key, x, y, w, h, flip, fallbackColor) {
+  const img=SPRITES[key];
+  if(img && img.complete && img.naturalWidth){
+    ctx.save();
+    if(flip){ctx.translate(x+w,y);ctx.scale(-1,1);ctx.drawImage(img,0,0,w,h);}
+    else{ctx.drawImage(img,x,y,w,h);}
+    ctx.restore();
+    return true;
+  }
+  if(fallbackColor){ctx.fillStyle=fallbackColor;ctx.fillRect(x,y,w,h);}
+  return false;
+}
+
+// Dessine une tuile PNG en repeat — fallback : fillRect
+function drawTile(key, x, y, w, h, fallbackColor) {
+  const img=SPRITES[key];
+  if(img && img.complete && img.naturalWidth){
+    ctx.save();
+    ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+    for(let tx=x;tx<x+w;tx+=img.naturalWidth)
+      for(let ty=y;ty<y+h;ty+=img.naturalHeight)
+        ctx.drawImage(img,tx,ty);
+    ctx.restore();
+    return true;
+  }
+  if(fallbackColor){ctx.fillStyle=fallbackColor;ctx.fillRect(x,y,w,h);}
+  return false;
+}
+
+// ============================================================
+// WEAPONS
+// ============================================================
+const WEAPONS = [
+  // ── Common melee ──
+  {id:'sword',    name:'Lame Scellée',           emoji:'🗡',  dmgMult:1.0, range:55, spd:20, proj:false, color:'#e8e8e8', classes:['chevalier','paladin'],         desc:'Équilibrée'},
+  {id:'dagger',   name:'Croc d\'Ombre',          emoji:'🔪',  dmgMult:0.7, range:40, spd:9,  proj:false, color:'#aaaaff', classes:['voleur'],                        desc:'Ultra rapide'},
+  // ── Uncommon melee ──
+  {id:'spear',    name:'Pique Brisée',          emoji:'⚡',  dmgMult:1.1, range:80, spd:22, proj:false, color:'#ffcc44', classes:['chevalier','paladin','barbare'],desc:'Longue portée'},
+  // ── Rare ranged ──
+  {id:'staff',    name:'Sceptre de Runes',  emoji:'🔮',  dmgMult:1.3, range:0,  spd:35, proj:true,  projSpd:7,  color:'#aa44ff', classes:['mage'],                   desc:'Projectile magique'},
+  {id:'bow',      name:'Arc du Traqueur',            emoji:'🏹',  dmgMult:1.0, range:0,  spd:22, proj:true,  projSpd:10, color:'#88cc44', classes:['archer'],                 desc:'Tir à distance'},
+];
+
+// ── MERCHANT-ONLY WEAPONS (legendary, exclusive, shop-only) ──
+const SHOP_WEAPONS = [
+  {id:'excalibur',   name:'Épée Ancestrale',        emoji:'✨',  dmgMult:2.2, range:70,  spd:22, proj:false, color:'#ffe066', classes:['chevalier','paladin'],       shopCost:120, desc:'Épée légendaire — +crit chance'},
+  {id:'godspear',    name:'Pique Sacrée',      emoji:'⚡',  dmgMult:2.4, range:110, spd:26, proj:false, color:'#ffffaa', classes:['barbare','chevalier'],       shopCost:130, desc:'Lance gigantesque à portée divine'},
+  {id:'starbow',     name:'Arc des Abysses',     emoji:'✦',  dmgMult:1.8, range:0,   spd:18, proj:true,  projSpd:14, color:'#aaddff', classes:['archer'],        shopCost:110, desc:'Flèches de lumière qui traversent les ennemis'},
+  {id:'phantomblade',name:'Lame Éclipse',      emoji:'✦',  dmgMult:1.6, range:52,  spd:7,  proj:false, color:'#cc88ff', classes:['voleur'],                    shopCost:100, desc:'Dague invisible — critique systématique'},
+  {id:'shadowblade',name:'Dague du Néant', emoji:'🌑',  dmgMult:1.8, range:44, spd:9,  proj:false, color:'#9944cc', classes:['voleur'],                 shopCost:100, desc:'Ultra rapide, saignement x2'},
+  {id:'spellsword', name:'Lame Runique',     emoji:'💠',  dmgMult:1.4, range:60, spd:18, proj:false, color:'#44aaff', classes:['chevalier','mage','paladin'], shopCost:140, desc:'Corps à corps + onde magique'},
+  {id:'voidstaff',  name:'Sceptre des Âmes',    emoji:'🌀',  dmgMult:2.0, range:0,  spd:30, proj:true,  projSpd:9,  color:'#cc00ff', classes:['mage'],       shopCost:150, desc:'Projectile qui traverse les murs'},
+];
+const ALL_WEAPONS = [...WEAPONS, ...SHOP_WEAPONS];
+
+
+function getWeapon(id){ return ALL_WEAPONS.find(w=>w.id===id)||WEAPONS[0]; }
+
+// Can this hero class use this weapon?
+function canUseWeapon(classId, weapon){
+  if(!weapon.classes) return true;
+  return weapon.classes.includes(classId);
+}
+
+
+// ============================================================
+// FLOOR THEMES
+// ============================================================
+const THEMES = [
+  {name:'Antichambre',        bg:'#0a0608', bgB:'#130c17', wall:'#2a1f28', wallL:'#3d2e3a', plat:'#3d2e3a', platL:'#1a0f1d', edge:'#c9a22788', fog:null,                  enemies:['skeleton','bomblob'],          badge:'⚔',  bColor:'#d4722a'},
+  {name:'Geôles',        bg:'#080c14', bgB:'#0d1220', wall:'#1e2540', wallL:'#2a3360', plat:'#2a3048', platL:'#151828', edge:'#4a90d955', fog:'rgba(20,30,80,0.06)',  enemies:['skeleton','crossbow','golem'],  badge:'🗡', bColor:'#4a90d9'},
+  {name:'Archives',  bg:'#0e0a06', bgB:'#1a1308', wall:'#2a2010', wallL:'#3a2e18', plat:'#3a2a10', platL:'#1c1408', edge:'#c9a22766', fog:'rgba(80,60,10,0.05)', enemies:['bat','mage','crossbow'],        badge:'📖', bColor:'#d4a050'},
+  {name:'La Flèche',bg:'#080c10', bgB:'#0c1018', wall:'#162030', wallL:'#20304a', plat:'#203040', platL:'#101820', edge:'#80c0ff55', fog:'rgba(40,80,120,0.07)', enemies:['bat','crossbow','mage'],        badge:'🌀', bColor:'#80c0ff'},
+  {name:'Entrailles',      bg:'#080608', bgB:'#0e080c', wall:'#1e0a28', wallL:'#2a1038', plat:'#2a1030', platL:'#160818', edge:'#9040c055', fog:'rgba(60,10,80,0.08)',  enemies:['spider','golem','bomblob'],     badge:'🕷', bColor:'#b060e0'},
+  {name:'Cœur du Sceau',        bg:'#120508', bgB:'#1e0808', wall:'#2a0a06', wallL:'#3c1008', plat:'#3a1008', platL:'#200a04', edge:'#ff601055', fog:'rgba(140,30,10,0.09)', enemies:['dragon','golem','bomblob'],     badge:'🌋', bColor:'#ff6020'},
+];
+
+function getTheme(depth){ return THEMES[Math.min(Math.floor(Math.abs(depth)/5),THEMES.length-1)]; }
+
+// ============================================================
+// STATE & DATA
+// ============================================================
+const state={
+  gold:0,
+  defeatedBosses:new Set(),
+  unlockedClasses:new Set(['chevalier','barbare']), // free classes
+  upgrades:{
+    hp:    {name:'Endurance', level:0,max:10,cost:35, effect:l=>l*20, desc:'+20 HP max/niv'},
+    atk:   {name:'Puissance',  level:0,max:10,cost:28, effect:l=>l*3,  desc:'+3 ATQ/niv'},
+    spd:   {name:'Vélocité',  level:0,max:8, cost:45, effect:l=>l*0.5, desc:'+0.5 SPD/niv'},
+    mp:    {name:'Essence',   level:0,max:10,cost:32, effect:l=>l*10,  desc:'+10 MP max/niv'},
+    dmgRed:{name:'Résistance', level:0,max:5, cost:80, effect:l=>l*0.05, desc:'-5% dégâts/niv'},
+    gold:  {name:'Pillage',   level:0,max:5, cost:70, effect:l=>l*0.15, desc:'+15% éclats/niv'},
+    crit:   {name:'Faille',       level:0,max:5, cost:90,  effect:l=>l*0.06, desc:'+6% critique/niv',   unlockBoss:0},
+    hpRegen:{name:'Régénération', level:0,max:5, cost:100, effect:l=>l*0.5,  desc:'+0.5 HP/sec/niv',    unlockBoss:1},
+    mpRegen:{name:'Flux Runique', level:0,max:5, cost:110, effect:l=>l*0.3,  desc:'+0.3 MP/sec/niv',    unlockBoss:2},
+    cooldown:{name:'Élan',        level:0,max:3, cost:120, effect:l=>l*0.12, desc:'-12% CD spécial/niv', unlockBoss:3},
+  }
+};
+function getUnlockedClasses(){ return ALL_VOCATIONS.filter(c=>state.unlockedClasses.has(c.id)); }
+
+const FIRST_NAMES=['Aeryn','Vael','Korryn','Sable','Dusk','Maren','Theron','Ivra','Calder','Nyx','Riven','Selene','Ash','Draven','Lyra','Oryn'];
+const LAST_NAME='du Sceau';
+
+// CLASS DEFINITIONS — some must be unlocked
+const ALL_VOCATIONS=[
+  {id:'chevalier',name:'Gardien',  emoji:'🛡',baseHp:120,baseAtk:12,baseMp:30,spd:2.8,color:'#d4722a',startWeapon:'sword',   unlockCost:0,   desc:'Érige un bouclier sacré. Résistant et équilibré.'},
+  {id:'barbare',  name:'Briseur',  emoji:'🪓',baseHp:140,baseAtk:16,baseMp:20,spd:2.3,color:'#cc1111',startWeapon:'spear',   unlockCost:0,   desc:'Force brute. Entre en rage dévastatrice.'},
+  {id:'voleur',   name:'Ombre',    emoji:'🗡️',baseHp:85, baseAtk:10,baseMp:50,spd:4.0,color:'#9c27b0',startWeapon:'dagger',  unlockCost:150, desc:'Furtif et fulgurant. Dash à travers les ennemis.'},
+  {id:'archer',   name:'Traqueur', emoji:'🏹',baseHp:80, baseAtk:9, baseMp:45,spd:3.2,color:'#4caf50',startWeapon:'bow',     unlockCost:200, desc:'Combat à distance. Salve de flèches en spéciale.'},
+  {id:'mage',     name:'Érudit',   emoji:'🔮',baseHp:70, baseAtk:7, baseMp:80,spd:2.5,color:'#4a90d9',startWeapon:'staff',   unlockCost:300, desc:'Maîtrise des runes. Nova runique dévastatrice.'},
+  {id:'paladin',  name:'Consacré', emoji:'✨',baseHp:160,baseAtk:10,baseMp:60,spd:2.4,color:'#f0c040',startWeapon:'sword',   unlockCost:400, desc:'Béni contre le mal. Aura de soin pour survivre.'},
+];
+
+
+// ============================================================
+// ROOM LAYOUT SYSTEM — forme globale semi-aléatoire
+// ============================================================
+const TW = 44;
+const RW = 20;
+const RH = 13;
+
+// Formes globales de salle : chaque entrée est une fonction(hash) -> {walls[], platforms[]}
+// Les formes décrivent l'architecture complète de la pièce intérieure
+const ROOM_SHAPES = [
+
+  // 0 : ESCALIER GAUCHE→DROITE
+  // Montée en 5 marches régulières, accès naturel à toutes les ouvertures
+  ()=>{ return {p:[
+    {x:1*TW,  y:9*TW,  w:4*TW, h:TW/3, t:'p'},  // marche 1 — accès GAUCHE
+    {x:4*TW,  y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // marche 2
+    {x:8*TW,  y:5*TW,  w:4*TW, h:TW/3, t:'p'},  // marche 3 — accès HAUT (x=8-12)
+    {x:12*TW, y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // marche 4
+    {x:15*TW, y:9*TW,  w:4*TW, h:TW/3, t:'p'},  // marche 5 — accès DROITE
+  ], w:[]}; },
+
+  // 1 : DEUX TOURS LATÉRALES
+  // Deux colonnes de plateformes sur les côtés, vide au centre
+  ()=>{ return {p:[
+    {x:1*TW,  y:9*TW,  w:4*TW, h:TW/3, t:'p'},  // tour G bas — accès GAUCHE
+    {x:1*TW,  y:6*TW,  w:4*TW, h:TW/3, t:'p'},  // tour G milieu
+    {x:1*TW,  y:3*TW,  w:4*TW, h:TW/3, t:'p'},  // tour G haut
+    {x:15*TW, y:9*TW,  w:4*TW, h:TW/3, t:'p'},  // tour D bas — accès DROITE
+    {x:15*TW, y:6*TW,  w:4*TW, h:TW/3, t:'p'},  // tour D milieu
+    {x:15*TW, y:3*TW,  w:4*TW, h:TW/3, t:'p'},  // tour D haut
+    {x:7*TW,  y:5*TW,  w:6*TW, h:TW/3, t:'p'},  // centrale — accès HAUT
+  ], w:[]}; },
+
+  // 2 : ÎLES FLOTTANTES
+  // 6 îles à hauteurs variées, progression naturelle
+  ()=>{ return {p:[
+    {x:1*TW,  y:8*TW,  w:5*TW, h:TW/3, t:'p'},  // île G basse — accès GAUCHE
+    {x:14*TW, y:8*TW,  w:5*TW, h:TW/3, t:'p'},  // île D basse — accès DROITE
+    {x:3*TW,  y:5*TW,  w:4*TW, h:TW/3, t:'p'},  // île G haute
+    {x:13*TW, y:5*TW,  w:4*TW, h:TW/3, t:'p'},  // île D haute
+    {x:8*TW,  y:3*TW,  w:4*TW, h:TW/3, t:'p'},  // île centrale — accès HAUT
+    {x:8*TW,  y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // île basse centre
+  ], w:[]}; },
+
+  // 3 : AMPHITHÉÂTRE
+  // Gradins concentriques symétriques, très lisible
+  ()=>{ return {p:[
+    {x:1*TW,  y:9*TW,  w:18*TW, h:TW/3, t:'p'}, // rang bas large
+    {x:2*TW,  y:6*TW,  w:7*TW,  h:TW/3, t:'p'}, // rang G milieu — accès GAUCHE
+    {x:11*TW, y:6*TW,  w:7*TW,  h:TW/3, t:'p'}, // rang D milieu — accès DROITE
+    {x:6*TW,  y:3*TW,  w:8*TW,  h:TW/3, t:'p'}, // scène haute — accès HAUT
+  ], w:[]}; },
+
+  // 4 : PONT SUSPENDU
+  // Longue montée latérale pour accéder à la passerelle centrale haute
+  ()=>{ return {p:[
+    {x:1*TW,  y:9*TW,  w:4*TW, h:TW/3, t:'p'},  // pied G — accès GAUCHE
+    {x:1*TW,  y:6*TW,  w:3*TW, h:TW/3, t:'p'},  // montée G
+    {x:4*TW,  y:4*TW,  w:3*TW, h:TW/3, t:'p'},  // montée G haute
+    {x:7*TW,  y:3*TW,  w:6*TW, h:TW/3, t:'p'},  // pont — accès HAUT
+    {x:13*TW, y:4*TW,  w:3*TW, h:TW/3, t:'p'},  // montée D haute
+    {x:16*TW, y:6*TW,  w:3*TW, h:TW/3, t:'p'},  // montée D
+    {x:15*TW, y:9*TW,  w:4*TW, h:TW/3, t:'p'},  // pied D — accès DROITE
+  ], w:[]}; },
+
+  // 5 : CROIX CENTRALE
+  // Grande plateforme au milieu + extensions latérales hautes et basses
+  ()=>{ return {p:[
+    {x:5*TW,  y:6*TW,  w:10*TW, h:TW/3, t:'p'}, // barre centrale large
+    {x:1*TW,  y:8*TW,  w:4*TW,  h:TW/3, t:'p'}, // ext G bas — accès GAUCHE
+    {x:15*TW, y:8*TW,  w:4*TW,  h:TW/3, t:'p'}, // ext D bas — accès DROITE
+    {x:1*TW,  y:4*TW,  w:4*TW,  h:TW/3, t:'p'}, // ext G haut
+    {x:15*TW, y:4*TW,  w:4*TW,  h:TW/3, t:'p'}, // ext D haut
+    {x:8*TW,  y:3*TW,  w:4*TW,  h:TW/3, t:'p'}, // sommet — accès HAUT
+  ], w:[]}; },
+
+  // 6 : ZIGZAG
+  // Chemin en dents de scie de bas-gauche à haut-droite, avec retours
+  ()=>{ return {p:[
+    {x:1*TW,  y:10*TW, w:5*TW, h:TW/3, t:'p'},  // départ G bas — accès GAUCHE
+    {x:1*TW,  y:7*TW,  w:3*TW, h:TW/3, t:'p'},  // montée G
+    {x:5*TW,  y:8*TW,  w:4*TW, h:TW/3, t:'p'},  // creux
+    {x:7*TW,  y:5*TW,  w:4*TW, h:TW/3, t:'p'},  // palier milieu — accès HAUT
+    {x:11*TW, y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // creux droite
+    {x:14*TW, y:5*TW,  w:4*TW, h:TW/3, t:'p'},  // montée D
+    {x:15*TW, y:8*TW,  w:4*TW, h:TW/3, t:'p'},  // arrivée D — accès DROITE
+  ], w:[]}; },
+
+  // 7 : SPIRALE
+  // Plateformes en spirale du bas-gauche jusqu'en haut-droite
+  ()=>{ return {p:[
+    {x:1*TW,  y:10*TW, w:5*TW, h:TW/3, t:'p'},  // bas G — accès GAUCHE
+    {x:13*TW, y:9*TW,  w:5*TW, h:TW/3, t:'p'},  // bas D
+    {x:1*TW,  y:7*TW,  w:5*TW, h:TW/3, t:'p'},  // milieu G
+    {x:10*TW, y:6*TW,  w:5*TW, h:TW/3, t:'p'},  // milieu D
+    {x:3*TW,  y:4*TW,  w:5*TW, h:TW/3, t:'p'},  // haut G
+    {x:12*TW, y:3*TW,  w:6*TW, h:TW/3, t:'p'},  // haut D — accès HAUT + DROITE
+  ], w:[]}; },
+
+  // 8 : ARCHE ROMAINE
+  // Deux piliers larges de chaque côté, pont haut entre eux
+  ()=>{ return {p:[
+    {x:1*TW,  y:8*TW,  w:4*TW, h:TW/3, t:'p'},  // pied G — accès GAUCHE
+    {x:1*TW,  y:5*TW,  w:4*TW, h:TW/3, t:'p'},  // milieu G
+    {x:1*TW,  y:3*TW,  w:4*TW, h:TW/3, t:'p'},  // sommet G
+    {x:15*TW, y:8*TW,  w:4*TW, h:TW/3, t:'p'},  // pied D — accès DROITE
+    {x:15*TW, y:5*TW,  w:4*TW, h:TW/3, t:'p'},  // milieu D
+    {x:15*TW, y:3*TW,  w:4*TW, h:TW/3, t:'p'},  // sommet D
+    {x:5*TW,  y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // sous-pont G
+    {x:11*TW, y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // sous-pont D
+    {x:7*TW,  y:3*TW,  w:6*TW, h:TW/3, t:'p'},  // tablier du pont — accès HAUT
+  ], w:[]}; },
+
+  // 9 : GROTTE EN V
+  // Fond plat côté gauche et droite, creux au centre, hauts passages latéraux
+  ()=>{ return {p:[
+    {x:1*TW,  y:9*TW,  w:5*TW, h:TW/3, t:'p'},  // sol G — accès GAUCHE
+    {x:14*TW, y:9*TW,  w:5*TW, h:TW/3, t:'p'},  // sol D — accès DROITE
+    {x:1*TW,  y:6*TW,  w:4*TW, h:TW/3, t:'p'},  // paroi G haute
+    {x:15*TW, y:6*TW,  w:4*TW, h:TW/3, t:'p'},  // paroi D haute
+    {x:5*TW,  y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // rebord G
+    {x:11*TW, y:7*TW,  w:4*TW, h:TW/3, t:'p'},  // rebord D
+    {x:8*TW,  y:4*TW,  w:4*TW, h:TW/3, t:'p'},  // corniche haute — accès HAUT
+  ], w:[]}; },
+
+  // 10 : ASYMÉTRIQUE GAUCHE
+  // Plus de hauteur à gauche, escalier vers la droite
+  ()=>{ return {p:[
+    {x:1*TW,  y:9*TW,  w:5*TW, h:TW/3, t:'p'},  // base G — accès GAUCHE
+    {x:1*TW,  y:6*TW,  w:5*TW, h:TW/3, t:'p'},  // milieu G
+    {x:1*TW,  y:3*TW,  w:5*TW, h:TW/3, t:'p'},  // sommet G — accès HAUT
+    {x:6*TW,  y:8*TW,  w:4*TW, h:TW/3, t:'p'},  // marche
+    {x:10*TW, y:6*TW,  w:4*TW, h:TW/3, t:'p'},  // plateau milieu
+    {x:14*TW, y:8*TW,  w:5*TW, h:TW/3, t:'p'},  // base D — accès DROITE
+  ], w:[]}; },
+
+  // 11 : ASYMÉTRIQUE DROITE
+  // Miroir exact du précédent
+  ()=>{ return {p:[
+    {x:14*TW, y:9*TW,  w:5*TW, h:TW/3, t:'p'},  // base D — accès DROITE
+    {x:14*TW, y:6*TW,  w:5*TW, h:TW/3, t:'p'},  // milieu D
+    {x:14*TW, y:3*TW,  w:5*TW, h:TW/3, t:'p'},  // sommet D — accès HAUT
+    {x:10*TW, y:8*TW,  w:4*TW, h:TW/3, t:'p'},  // marche
+    {x:6*TW,  y:6*TW,  w:4*TW, h:TW/3, t:'p'},  // plateau milieu
+    {x:1*TW,  y:8*TW,  w:5*TW, h:TW/3, t:'p'},  // base G — accès GAUCHE
+  ], w:[]}; },
+
+  // 12 : TERRASSES LARGES
+  // Trois niveaux larges, très jouable, beaucoup d'espace
+  ()=>{ return {p:[
+    {x:1*TW,  y:9*TW,  w:7*TW,  h:TW/3, t:'p'}, // terrasse basse G — accès GAUCHE
+    {x:12*TW, y:9*TW,  w:7*TW,  h:TW/3, t:'p'}, // terrasse basse D — accès DROITE
+    {x:1*TW,  y:6*TW,  w:8*TW,  h:TW/3, t:'p'}, // terrasse milieu G
+    {x:11*TW, y:6*TW,  w:8*TW,  h:TW/3, t:'p'}, // terrasse milieu D
+    {x:6*TW,  y:3*TW,  w:8*TW,  h:TW/3, t:'p'}, // terrasse haute centrale — accès HAUT
+  ], w:[]}; },
+
+  // 13 : LABYRINTHE OUVERT
+  // Deux couloirs décalés créent un chemin non-linéaire
+  ()=>{ return {p:[
+    {x:1*TW,  y:7*TW,  w:6*TW, h:TW/3, t:'p'},  // couloir G — accès GAUCHE
+    {x:13*TW, y:7*TW,  w:6*TW, h:TW/3, t:'p'},  // couloir D — accès DROITE
+    {x:7*TW,  y:9*TW,  w:6*TW, h:TW/3, t:'p'},  // plancher bas
+    {x:3*TW,  y:4*TW,  w:5*TW, h:TW/3, t:'p'},  // palier haut G
+    {x:12*TW, y:4*TW,  w:5*TW, h:TW/3, t:'p'},  // palier haut D
+    {x:8*TW,  y:2*TW,  w:4*TW, h:TW/3, t:'p'},  // sommet — accès HAUT
+  ], w:[]}; },
+
+];
+
+// Génère la forme globale de la salle et retourne {platforms, walls}
+function generateRoomShape(key, connections){
+  const h = Math.abs(hashCode(key));
+  const shapeIdx = h % ROOM_SHAPES.length;
+  const {p: innerPlatforms, w: innerWalls} = ROOM_SHAPES[shapeIdx](h);
+
+  const walls = [];
+  const platforms = [];
+  const midX = Math.floor(RW/2);
+  const midY = Math.floor(RH/2);
+
+  // Murs extérieurs avec ouvertures
+  for(let x=0;x<RW;x++){
+    if(connections.up && x>=midX-1 && x<=midX+1) continue;
+    walls.push({x:x*TW,y:0,w:TW,h:TW,t:'w'});
+  }
+  for(let x=0;x<RW;x++){
+    if(connections.down && x>=midX-1 && x<=midX+1) continue;
+    walls.push({x:x*TW,y:(RH-1)*TW,w:TW,h:TW*3,t:'g'});
+  }
+  for(let y=1;y<RH-1;y++){
+    if(connections.left && y>=midY-1 && y<=midY+1) continue;
+    walls.push({x:0,y:y*TW,w:TW,h:TW,t:'w'});
+  }
+  for(let y=1;y<RH-1;y++){
+    if(connections.right && y>=midY-1 && y<=midY+1) continue;
+    walls.push({x:(RW-1)*TW,y:y*TW,w:TW,h:TW,t:'w'});
+  }
+
+  // Murs intérieurs issus de la forme
+  for(const wl of innerWalls) walls.push(wl);
+  for(const pl of innerPlatforms) platforms.push(pl);
+
+  return {walls, platforms};
+}
+
+function buildRoom(key, connections, depth, heroClassId){
+  heroClassId = heroClassId || 'chevalier';
+  const theme = getTheme(depth);
+  const {walls, platforms} = generateRoomShape(key, connections);
+
+  const enemies = [];
+
+  // Enemies — mix of floor enemies and platform-perched enemies
+  const ePool = theme.enemies;
+  const diff = Math.abs(depth);
+  const cnt = 1 + Math.min(diff,5) + Math.floor(Math.random()*2);
+
+  // Spawn points : sommet des plateformes intérieures
+  const platSpawns = platforms.map(pl=>({
+    x: pl.x + pl.w/2,
+    y: pl.y - 38
+  }));
+
+  // Types that prefer platforms (ranged/static) vs floor
+  const PLATFORM_TYPES = new Set(['crossbow','mage','spider']);
+
+  for(let i=0;i<cnt;i++){
+    const type = rnd(ePool);
+    const def = ENEMY_DEFS[type];
+    if(!def) continue;
+    const hp = Math.floor((28+diff*10)*(def.hpMul||1));
+    const atk = Math.floor((7+diff*3));
+
+    let ex, ey;
+    if(!def.flying && PLATFORM_TYPES.has(type) && platSpawns.length>0 && Math.random()<0.7){
+      // Spawn on a random platform
+      const sp = rnd(platSpawns);
+      ex = sp.x - Math.floor(def.w/2) + rndInt(-10,10);
+      ey = sp.y;
+      // Clamp inside room
+      ex = Math.max(TW+4, Math.min((RW-2)*TW - def.w, ex));
+    } else if(def.flying){
+      ex = (2+Math.floor(Math.random()*15))*TW;
+      ey = (2+Math.floor(Math.random()*4))*TW;
+    } else {
+      ex = (2+Math.floor(Math.random()*15))*TW;
+      ey = (RH-2.5)*TW;
+    }
+
+    enemies.push({
+      x:ex,y:ey,w:def.w,h:def.h,vx:0,vy:0,
+      cx:ex+def.w/2,cy:ey+def.h/2,
+      hp,maxHp:hp,atk,type,def,
+      facing:-1,attackTimer:Math.floor(Math.random()*60),invincible:0,
+      onGround:false,aiTimer:Math.floor(Math.random()*80),
+      flying:def.flying,
+    });
+  }
+
+  // Gold chest
+  let goldChest = null;
+  if(Math.random()<0.5){
+    const diff2 = Math.abs(depth);
+    goldChest = {x:TW*rndInt(4,15), y:(RH-2)*TW, w:36,h:36, collected:false,
+      amount: Math.floor((22+diff2*8)*(1))};
+  }
+
+  // Heal chest (red) — 35% chance, separate position from gold chest
+  let healChest = null;
+  if(Math.random()<0.35){
+    const diff2 = Math.abs(depth);
+    const hx = goldChest ? (goldChest.x > RW*TW/2 ? TW*rndInt(2,9) : TW*rndInt(11,17)) : TW*rndInt(3,16);
+    healChest = {x:hx, y:(RH-2)*TW, w:36,h:36, collected:false,
+      heal: Math.floor(20 + diff2*5)}; // heals more in deeper rooms
+  }
+
+  // Gates — solid tiles that block openings while room not cleared
+  // They sit exactly in the gap left in the walls for each connection
+  const gates = [];
+  const midTileX = Math.floor(RW/2); // tile index of center
+  const midTileY = Math.floor(RH/2);
+  if(connections.up){
+    for(let dx=-1;dx<=1;dx++) gates.push({x:(midTileX+dx)*TW,y:0,w:TW,h:TW,t:'gate',dir:'up'});
+  }
+  if(connections.down){
+    for(let dx=-1;dx<=1;dx++) gates.push({x:(midTileX+dx)*TW,y:(RH-1)*TW,w:TW,h:TW*3,t:'gate',dir:'down'});
+  }
+  if(connections.left){
+    for(let dy=-1;dy<=1;dy++) gates.push({x:0,y:(midTileY+dy)*TW,w:TW,h:TW,t:'gate',dir:'left'});
+  }
+  if(connections.right){
+    for(let dy=-1;dy<=1;dy++) gates.push({x:(RW-1)*TW,y:(midTileY+dy)*TW,w:TW,h:TW,t:'gate',dir:'right'});
+  }
+
+  // Plateforme au sol au-dessus du passage vers le bas — empêche les ennemis de tomber
+  if(connections.down){
+    platforms.push({x:(midTileX-1)*TW, y:(RH-1)*TW-4, w:TW*3, h:4, t:'p'});
+  }
+
+  return { walls, platforms, gates, enemies, goldChest, healChest, theme, connections,
+    cleared:false, visited:true,
+  };
+}
+
+// ── BOSS DE ZONE (un par thème) ──
+const BOSS_DEFS = [
+  // Antichambre boss — Gardien Corrompu (depth 3)
+  { type:'boss_guardian', name:'Gardien Corrompu', w:80,h:90, hpMul:5, col:['#5a3a10','#8a5a18'], eye:'#ffcc00', flying:false,
+    ai:(e,h,g,d)=>{
+      const rage=e.hp<e.maxHp*0.5;
+      mAI(e,h,rage?3.5:2.2);
+      // Tir de marteau toutes les 70 frames
+      if(e.aiTimer%70===0&&dist(e,h)<380) shoot(e,h,g,5,'#ffcc00',e.atk,0);
+      // Charge fracassante — saute vers le joueur
+      if(e.aiTimer%120===0){ e.vy=-10; e.vx=e.facing*9; addFloat('FRACAS!',e.cx,e.y-25,'#ff8800'); }
+      // Slam au sol (<50% HP) — fragments dans 4 directions
+      if(rage&&e.aiTimer%90===0&&e.onGround){
+        for(let i=0;i<5;i++) g.projectiles.push({x:e.cx,y:e.cy,vx:(i-2)*4,vy:-5+Math.random()*2,w:14,h:14,foe:true,dmg:e.atk*0.8,color:'#ff9900',life:120});
+        addFloat('SLAM!',e.cx,e.y-30,'#ffcc00');
+      }
+      // Bouclier temporaire — invincible 2 sec toutes les 200 frames
+      if(e.aiTimer%200===0){ e.invincible=Math.max(e.invincible,120); addFloat('BOUCLIER!',e.cx,e.y-40,'#ffe066'); }
+    }
+  },
+  // Geôles boss — Bourreau (depth 6)
+  { type:'boss_executioner', name:'Bourreau des Geôles', w:72,h:88, hpMul:9, col:['#2a2a3a','#4a4a6a'], eye:'#ff2244',
+    ai:(e,h,g,d)=>{
+      const rage=e.hp<e.maxHp*0.4;
+      mAI(e,h,rage?3.0:2.0);
+      // Double lame en diagonale
+      if(e.aiTimer%55===0){ shoot(e,h,g,6,'#ff2244',e.atk*1.4,-1.5); shoot(e,h,g,6,'#ff2244',e.atk*1.4,1.5); }
+      // Frappe directe vers le joueur
+      if(e.aiTimer%80===0&&dist(e,h)<320) aimAt(e,h,g,8,'#ff0000',e.atk*1.8,14);
+      // Rage : rafale en X (4 diagonales)
+      if(rage&&e.aiTimer%100===0){
+        shoot(e,h,g,7,'#ff4466',e.atk,-2); shoot(e,h,g,7,'#ff4466',e.atk,2);
+        shoot(e,h,g,7,'#ff4466',e.atk*1.2,-1); shoot(e,h,g,7,'#ff4466',e.atk*1.2,1);
+        addFloat('EXÉCUTION!',e.cx,e.y-30,'#ff2244');
+      }
+      // Grand saut d'impact toutes les 150 frames
+      if(e.aiTimer%150===0){ e.vy=-13; e.vx=e.facing*6; addFloat('IMPACT!',e.cx,e.y-25,'#ff2244'); }
+    }
+  },
+  // Archives boss — Érudit Maudit (depth 9)
+  { type:'boss_archivist', name:'Archiviste Maudit', w:65,h:80, hpMul:11, col:['#1a1030','#3a2060'], eye:'#cc44ff', flying:true,
+    ai:(e,h,g,d)=>{
+      const rage=e.hp<e.maxHp*0.45;
+      // Orbite autour du joueur en gardant la hauteur
+      const targetX=h.cx+Math.sin(e.aiTimer*0.04)*220;
+      const targetY=h.cy-120+Math.cos(e.aiTimer*0.025)*60;
+      e.vx+=(targetX-e.cx)*0.06; e.vy+=(targetY-e.cy)*0.06;
+      e.vx*=0.88; e.vy*=0.88; e.facing=h.cx>e.cx?1:-1;
+      // Triple tir ciblé
+      if(e.aiTimer%40===0){ aimAt(e,h,g,7,'#cc44ff',e.atk,11); shoot(e,h,g,5,'#aa22dd',e.atk*0.7,-1.5); shoot(e,h,g,5,'#aa22dd',e.atk*0.7,1.5); }
+      // Pluie de runes en éventail (7 tirs)
+      if(e.aiTimer%90===0){
+        for(let i=0;i<7;i++) g.projectiles.push({x:e.cx,y:e.cy,vx:(i-3)*2.5,vy:4+Math.random(),w:9,h:9,foe:true,dmg:e.atk*0.9,color:'#dd88ff',life:200});
+        addFloat('MALÉDICTION!',e.cx,e.y-30,'#cc44ff');
+      }
+      // Rage : téléportation (saut instantané derrière le joueur)
+      if(rage&&e.aiTimer%130===0){ e.x=h.cx+(-e.facing)*80; e.y=h.cy-40; addFloat('APPARITION!',e.cx,e.y-20,'#ff88ff'); }
+    }
+  },
+  // La Flèche boss — Chevalier du Vent (depth 12)
+  { type:'boss_windknight', name:'Chevalier du Vent', w:70,h:85, hpMul:13, col:['#103050','#2060a0'], eye:'#80d0ff',
+    ai:(e,h,g,d)=>{
+      const rage=e.hp<e.maxHp*0.4;
+      mAI(e,h,rage?4.5:3.0);
+      // Bond haut périodique
+      if(e.aiTimer%80===0&&e.onGround){ e.vy=-14; addFloat('BOND!',e.cx,e.y-20,'#80d0ff'); }
+      // Dash horizontal éclair (phase de rage)
+      if(rage&&e.aiTimer%60===0){ e.vx=e.facing*18; addFloat('ÉCLAIR!',e.cx,e.y-20,'#aaffff'); }
+      // Tir ciblé rapide
+      if(e.aiTimer%45===0&&dist(e,h)<380) aimAt(e,h,g,9,'#80d0ff',e.atk*1.2,12);
+      // Tornade — 3 tirs horizontaux en éventail vertical
+      if(e.aiTimer%110===0){
+        for(let i=-2;i<=2;i++) g.projectiles.push({x:e.cx,y:e.cy,vx:e.facing*9,vy:i*2,w:11,h:11,foe:true,dmg:e.atk,color:'#60c0ff',life:200});
+        addFloat('TORNADE!',e.cx,e.y-30,'#80d0ff');
+      }
+      // Combo : 3 tirs rapides ciblés en rafale
+      if(rage&&e.aiTimer%70===0){ [0,-0.8,0.8].forEach(vy=>aimAt(e,h,g,10,'#ffffff',e.atk*0.9,9)); }
+    }
+  },
+  // Entrailles boss — Chair d'Azrathys (depth 15)
+  { type:'boss_flesh', name:'Chair d\'Azrathys', w:90,h:85, hpMul:16, col:['#500020','#900040'], eye:'#ff0060', flying:true,
+    ai:(e,h,g,d)=>{
+      const rage=e.hp<e.maxHp*0.4;
+      // Vol pulsant — oscille de haut en bas
+      const targetY=h.cy-100+Math.sin(e.aiTimer*0.03)*80;
+      const targetX=h.cx+Math.cos(e.aiTimer*0.02)*160;
+      e.vx+=(targetX-e.cx)*0.05; e.vy+=(targetY-e.cy)*0.05;
+      e.vx*=0.9; e.vy*=0.9; e.facing=h.cx>e.cx?1:-1;
+      // Tentacules — 3 tirs en éventail ciblés
+      if(e.aiTimer%45===0){ for(let i=-1;i<=1;i++){ const a=i*0.5; aimAt(e,h,g,5,'#ff0060',e.atk,14); g.projectiles[g.projectiles.length-1].vy+=a*3; } }
+      // Regen (réduite en rage)
+      if(e.aiTimer%160===0){ e.hp=Math.min(e.maxHp,e.hp+Math.floor(e.maxHp*(rage?0.03:0.08))); addFloat(rage?'PULSATION!':'RÉGÉNÉRATION',e.cx,e.y-30,'#ff0060'); }
+      // Explosion de masse en rage — 8 tirs radiaux
+      if(rage&&e.aiTimer%100===0){
+        for(let i=0;i<8;i++) g.projectiles.push({x:e.cx,y:e.cy,vx:Math.cos(i/8*Math.PI*2)*6,vy:Math.sin(i/8*Math.PI*2)*6,w:13,h:13,foe:true,dmg:e.atk*1.1,color:'#ff4488',life:220});
+        addFloat('IMPLOSION!',e.cx,e.y-40,'#ff0060');
+      }
+    }
+  },
+  // Cœur du Sceau boss — Azrathys (depth 18)
+  { type:'boss_azrathys', name:'AZRATHYS', w:100,h:100, hpMul:20, col:['#200030','#500080'], eye:'#dd00ff', flying:true,
+    ai:(e,h,g,d)=>{
+      const phase2=e.hp<e.maxHp*0.66, phase3=e.hp<e.maxHp*0.33;
+      // Vol orbitant plus chaotique en phase 3
+      const spd=phase3?2.2:phase2?1.8:1.4;
+      const orbitR=phase3?100:150, orbitSpd=phase3?0.06:0.04;
+      const tx=h.cx+Math.cos(e.aiTimer*orbitSpd)*orbitR;
+      const ty=h.cy-120+Math.sin(e.aiTimer*orbitSpd*0.7)*60;
+      e.vx+=(tx-e.cx)*0.07; e.vy+=(ty-e.cy)*0.07;
+      e.vx*=0.88; e.vy*=0.88; e.facing=h.cx>e.cx?1:-1;
+      // Phase 1 : radiale 6 tirs
+      if(e.aiTimer%35===0) for(let i=0;i<6;i++) g.projectiles.push({x:e.cx,y:e.cy,vx:Math.cos(i/6*Math.PI*2+e.aiTimer*0.1)*6,vy:Math.sin(i/6*Math.PI*2+e.aiTimer*0.1)*6,w:11,h:11,foe:true,dmg:e.atk,color:'#dd00ff',life:240});
+      // Phase 2 : +tir ciblé rapide
+      if(phase2&&e.aiTimer%25===0) aimAt(e,h,g,9,'#ff44ff',e.atk*1.1,13);
+      // Phase 3 : radiale 8 tirs + rafale chaos
+      if(phase3&&e.aiTimer%28===0) for(let i=0;i<8;i++) g.projectiles.push({x:e.cx,y:e.cy,vx:Math.cos(i/8*Math.PI*2+e.aiTimer*0.15)*7,vy:Math.sin(i/8*Math.PI*2+e.aiTimer*0.15)*7,w:13,h:13,foe:true,dmg:e.atk*1.2,color:'#ff00cc',life:250});
+      // Regen diminue avec les phases
+      if(e.aiTimer%180===0){ const regen=phase3?0.02:phase2?0.04:0.05; e.hp=Math.min(e.maxHp,e.hp+Math.floor(e.maxHp*regen)); addFloat(phase3?'AGONIE!':phase2?'RÉSISTANCE!':'LE SCEAU TREMBLE!',e.cx,e.y-40,'#dd00ff'); }
+    }
+  },
+];
+
+let _currentHeroClass = 'chevalier'; // set at run start
+function hashCode(str){ let h=0; for(let i=0;i<str.length;i++){h=(h<<5)-h+str.charCodeAt(i);h|=0;} return h; }
+
+// ============================================================
+// ENEMY DEFINITIONS
+// ============================================================
+const ENEMY_DEFS = {
+  // Mêlée basique — référence
+  skeleton:{ w:47,h:58,flying:false,hpMul:1.0, col:['#b0b0c0','#808090'],eye:'#ff4444',
+    ai:(e,h,g,d)=>{ mAI(e,h,1.5+d*0.07); } },
+  // Mêlée + filet ralentissant
+  spider:  { w:47,h:36,flying:false,hpMul:0.9, col:['#1a1a1a','#303030'],eye:'#ff2200',
+    ai:(e,h,g,d)=>{ mAI(e,h,2.5+d*0.12); if(e.aiTimer%100===0&&dist(e,h)<280) webShot(e,h,g); } },
+  // Distance immobile — se retourne, ne bouge pas
+  crossbow:{ w:43,h:54,flying:false,hpMul:0.9, col:['#503828','#382818'],eye:'#ffcc44',
+    ai:(e,h,g,d)=>{ pAI(e,h,g,d,9,'#ffcc44'); } },
+  // Distance mobile — recule en tirant
+  mage:    { w:43,h:54,flying:false,hpMul:0.8, col:['#4a2060','#7030a0'],eye:'#cc44ff',
+    ai:(e,h,g,d)=>{ rAI(e,h,g,d,5,'#cc44ff'); e.vx*=0.4; } },
+  // Vol rapide fonceur
+  bat:     { w:40,h:29,flying:true, hpMul:0.6, col:['#3a1a3a','#5a2a5a'],eye:'#ff44aa',
+    ai:(e,h,g,d)=>{ fAI(e,h,1.1+d*0.04); } },
+  // Vol + rafale de feu — mini-boss volant
+  dragon:  { w:76,h:68,flying:true, hpMul:3.0, col:['#800000','#cc2000'],eye:'#ffaa00',
+    ai:(e,h,g,d)=>{
+      // Suit la hauteur du joueur, garde distance horizontale optimale
+      e.facing=h.cx>e.cx?1:-1;
+      const hdx=h.cx-e.cx, hdy=h.cy-e.cy;
+      const targetX=h.cx-e.facing*280; // 280px devant le joueur
+      e.vx+=(targetX-e.cx)*0.04; // glisse vers la position cible
+      e.vy+=hdy*0.06;             // suit la hauteur du joueur
+      e.vx=Math.max(-4,Math.min(4,e.vx));
+      e.vy=Math.max(-3,Math.min(3,e.vy));
+      // Tir ciblé vers le joueur toutes les 50 frames
+      if(e.aiTimer%50===0) aimAt(e,h,g,7,'#ff6600',e.atk*2,12);
+      // Bourrasque (3 tirs étalés) à mi-vie
+      if(e.hp<e.maxHp*0.5&&e.aiTimer%80===0){
+        for(let i=-1;i<=1;i++) g.projectiles.push({x:e.cx,y:e.cy,vx:e.facing*7,vy:i*2,w:10,h:10,foe:true,dmg:e.atk*1.5,color:'#ff8800',life:200});
+      }
+    } },
+  // Tank + charge (saut vers héros)
+  golem:   { w:65,h:72,flying:false,hpMul:4.0, col:['#504040','#706060'],eye:'#ff2200',
+    ai:(e,h,g,d)=>{ mAI(e,h,0.8+d*0.04); if(e.aiTimer%100===0&&dist(e,h)<140){ e.vy=-9; e.vx=e.facing*7; } } },
+  // Kamikaze — explose à 30% HP
+  bomblob: { w:43,h:43,flying:false,hpMul:0.8, col:['#604020','#904020'],eye:'#ffaa00',
+    ai:(e,h,g,d)=>{ mAI(e,h,2.5+d*0.1);
+      if(e.hp<e.maxHp*0.3&&!e.exploded){ e.exploded=true;
+        for(let i=0;i<8;i++) game.projectiles.push({x:e.cx,y:e.cy,vx:Math.cos(i/8*Math.PI*2)*5,vy:Math.sin(i/8*Math.PI*2)*5-1,w:8,h:8,foe:true,dmg:e.atk*1.5,color:'#ff6600',life:40});
+        addFloat('RUPTURE!',e.cx,e.cy,'#ff6600');
+      }
+    } },
+};
+
+function dist(a,b){ return Math.hypot(a.cx-b.cx,a.cy-b.cy); }
+function mAI(e,h,spd){ if(e.aiTimer%50!==0)return; const dx=h.cx-e.cx; if(Math.abs(dx)<250){e.vx=(dx>0?1:-1)*spd;e.facing=dx>0?1:-1;} else e.vx*=0.5; }
+function fAI(e,h,spd){ const dx=h.cx-e.cx,dy=h.cy-e.cy,d=Math.hypot(dx,dy)||1; if(d<280){e.vx=dx/d*spd;e.vy=dy/d*spd;e.facing=dx>0?1:-1;} }
+function rAI(e,h,g,d,ps,col){ e.facing=h.cx>e.cx?1:-1; if(e.aiTimer%80===0&&Math.abs(h.cx-e.cx)<360) shoot(e,h,g,ps,col,e.atk,-2); }
+function pAI(e,h,g,d,ps,col){ e.facing=h.cx>e.cx?1:-1; if(e.onGround)e.vx=0; else e.vx=e.facing*1.5; if(e.aiTimer%75===0&&Math.abs(h.cx-e.cx)<400) shoot(e,h,g,ps,col,e.atk,0); }
+function shoot(e,_h,g,ps,col,dmg,vy){ g.projectiles.push({x:e.cx,y:e.cy,vx:e.facing*ps,vy,w:10,h:10,foe:true,dmg,color:col,life:180}); }
+function aimAt(e,h,g,ps,col,dmg,sz){ const dx=h.cx-e.cx,dy=h.cy-e.cy,d=Math.hypot(dx,dy)||1; sz=sz||10; g.projectiles.push({x:e.cx,y:e.cy,vx:dx/d*ps,vy:dy/d*ps,w:sz,h:sz,foe:true,dmg,color:col,life:220}); }
+function webShot(e,h,g){ const dx=h.cx-e.cx,dy=h.cy-e.cy,d=Math.hypot(dx,dy)||1; g.projectiles.push({x:e.cx,y:e.cy,vx:dx/d*3.5,vy:dy/d*3.5,w:12,h:12,foe:true,dmg:0,color:'#fff8',life:90,web:true}); }
+
+// ============================================================
+// WORLD MAP
+// ============================================================
+let worldMap = {}; // key "gx,gy" => roomData
+let worldConns = {}; // key "gx,gy" => {up,down,left,right}
+
+function roomKey(gx,gy){ return `${gx},${gy}`; }
+
+function ensureRoom(gx,gy,depth){
+  const k = roomKey(gx,gy);
+  if(worldMap[k]) return;
+  const conns = worldConns[k] || {up:false,down:false,left:false,right:false};
+  if(!conns.up)    conns.up    = Math.random()<0.55;
+  if(!conns.down)  conns.down  = Math.random()<0.55;
+  if(!conns.left)  conns.left  = Math.random()<0.55;
+  if(!conns.right) conns.right = Math.random()<0.55;
+  const cnt = Object.values(conns).filter(Boolean).length;
+  if(cnt<2){ const dirs=['up','down','left','right']; conns[rnd(dirs)]=true; }
+  worldConns[k] = conns;
+  // 20% chance of merchant room if depth >= 2 and no other merchant nearby
+  const isBossDepth  = depth>0 && (depth+1)%5===0;  // depth 4,9,14,19...
+  const isShopForced = depth>0 && depth%5===3;       // depth 3,8,13,18... — marchand AVANT le boss
+  const isShop = isShopForced;
+  if(isBossDepth){
+    const bossZoneIdx=Math.min(Math.floor(depth/5),BOSS_DEFS.length-1);
+    if(state.defeatedBosses.has(bossZoneIdx)){
+      // Boss déjà vaincu — salle normale passante
+      worldMap[k]=buildRoom(k, conns, depth, _currentHeroClass);
+    } else {
+      conns.up=true; conns.down=true; conns.left=false; conns.right=false;
+      worldConns[k]=conns;
+      worldMap[k]=buildBossRoom(k, conns, depth);
+    }
+  } else if(isShop){
+    worldMap[k]=buildShopRoom(k, conns, depth);
+  } else {
+    worldMap[k]=buildRoom(k, conns, depth, _currentHeroClass);
+  }
+}
+
+function buildBossRoom(key, connections, depth){
+  const theme=getTheme(depth);
+  const walls=[],platforms=[],gates=[];
+  const W=RW*TW,H=RH*TW,WALL=TW;
+  const midTileX=Math.floor(RW/2),midTileY=Math.floor(RH/2);
+  // Murs extérieurs — seules les portes haut/bas ouvertes (entrée/sortie)
+  const bossConns={up:false,down:true,left:false,right:false,...connections};
+  bossConns.left=false;bossConns.right=false; // boss room = entrée bas, sortie haut seulement
+  for(let x=0;x<RW;x++){
+    if(bossConns.up&&x>=midTileX-1&&x<=midTileX+1) continue;
+    walls.push({x:x*TW,y:0,w:TW,h:WALL,t:'w'});
+  }
+  for(let x=0;x<RW;x++){
+    const py=(RH-1)*TW;
+    if(bossConns.down&&x>=midTileX-1&&x<=midTileX+1) continue;
+    walls.push({x:x*TW,y:py,w:TW,h:TW*3,t:'g'});
+  }
+  for(let y=1;y<RH-1;y++){ walls.push({x:0,y:y*TW,w:WALL,h:TW,t:'w'}); }
+  for(let y=1;y<RH-1;y++){ walls.push({x:(RW-1)*TW,y:y*TW,w:WALL,h:TW,t:'w'}); }
+  // Sol avec trou pour passage bas
+  for(let x=0;x<RW;x++){
+    if(bossConns.down&&x>=midTileX-1&&x<=midTileX+1) continue;
+    walls.push({x:x*TW,y:(RH-1)*TW,w:TW,h:TW,t:'g'});
+  }
+  // Quelques plateformes
+  platforms.push({x:TW*2,y:(RH-4)*TW,w:TW*4,h:TW,t:'p'});
+  platforms.push({x:TW*14,y:(RH-4)*TW,w:TW*4,h:TW,t:'p'});
+  platforms.push({x:TW*8,y:(RH-6)*TW,w:TW*4,h:TW,t:'p'});
+  // Boss
+  const bossIdx=Math.min(Math.floor(depth/5),BOSS_DEFS.length-1);
+  const bdef=BOSS_DEFS[bossIdx];
+  const baseHp=Math.floor(60*(1+depth*0.18));
+  const baseAtk=Math.floor(8+depth*1.2);
+  const boss={
+    x:RW*TW/2-bdef.w/2, y:(RH-2)*TW-bdef.h,
+    w:bdef.w, h:bdef.h, vx:0, vy:0,
+    cx:0,cy:0,
+    hp:Math.floor(baseHp*bdef.hpMul*(TEST_MODE?0.2:1)), maxHp:Math.floor(baseHp*bdef.hpMul*(TEST_MODE?0.2:1)),
+    atk:Math.floor(baseAtk*1.8),
+    type:bdef.type, def:bdef, name:bdef.name,
+    facing:-1, attackTimer:0, invincible:0,
+    onGround:false, aiTimer:0, flying:bdef.flying||false, isBoss:true,
+  };
+  // Portes boss (bloquent pendant le combat)
+  if(bossConns.up)   for(let dx=-1;dx<=1;dx++) gates.push({x:(midTileX+dx)*TW,y:0,w:TW,h:TW,t:'gate',dir:'up'});
+  if(bossConns.down) for(let dx=-1;dx<=1;dx++) gates.push({x:(midTileX+dx)*TW,y:(RH-1)*TW,w:TW,h:TW*3,t:'gate',dir:'down'});
+  // Plateforme au-dessus du passage bas — empêche le boss de tomber
+  if(bossConns.down){ platforms.push({x:(midTileX-1)*TW,y:(RH-1)*TW-4,w:TW*3,h:4,t:'p'}); }
+  return { walls, platforms, gates, enemies:[boss], goldChest:null, healChest:null,
+    theme, connections:bossConns, cleared:false, visited:true, isBoss:true, bossIdx,
+  };
+}
+
+function buildShopRoom(key, connections, depth){
+  // Mostly empty room with merchant NPC and items
+  const theme = getTheme(depth);
+  const walls=[], platforms=[], gates=[];
+  const W=RW*TW, H=RH*TW, WALL=TW;
+  const midTileX=Math.floor(RW/2), midTileY=Math.floor(RH/2);
+  // Outer walls with openings
+  for(let x=0;x<RW;x++){
+    if(connections.up && x>=midTileX-1 && x<=midTileX+1) continue;
+    walls.push({x:x*TW,y:0,w:TW,h:WALL,t:'w'});
+  }
+  for(let x=0;x<RW;x++){
+    const py=(RH-1)*TW;
+    if(connections.down && x>=midTileX-1 && x<=midTileX+1) continue;
+    walls.push({x:x*TW,y:py,w:TW,h:TW*3,t:'g'});
+  }
+  for(let y=1;y<RH-1;y++){
+    const py=y*TW;
+    if(connections.left && y>=midTileY-1 && y<=midTileY+1) continue;
+    walls.push({x:0,y:py,w:WALL,h:TW,t:'w'});
+  }
+  for(let y=1;y<RH-1;y++){
+    const py=y*TW;
+    if(connections.right && y>=midTileY-1 && y<=midTileY+1) continue;
+    walls.push({x:(RW-1)*TW,y:py,w:WALL,h:TW,t:'w'});
+  }
+  // Forcer connexion UP — sortie toujours disponible
+  connections.up = true;
+  // Retirer les murs qui bouchent l'ouverture UP
+  for(let i=walls.length-1;i>=0;i--){
+    const w=walls[i];
+    if(w.y===0 && Math.round(w.x/TW)>=midTileX-1 && Math.round(w.x/TW)<=midTileX+1) walls.splice(i,1);
+  }
+  // Plateformes en escalier pour atteindre le passage UP
+  platforms.push({x:TW*2,           y:(RH-4)*TW,   w:TW*3, h:8, t:'p'}); // bas gauche
+  platforms.push({x:(midTileX)*TW,  y:(RH-6)*TW,   w:TW*3, h:8, t:'p'}); // milieu
+  platforms.push({x:(midTileX-2)*TW,y:TW*2,         w:TW*4, h:8, t:'p'}); // haut — juste sous l'ouverture
+  // Anti-chute passage DOWN
+  if(connections.down) platforms.push({x:(midTileX-1)*TW, y:(RH-1)*TW-4, w:TW*3, h:4, t:'p'});
+  // A few display platforms for shop items
+  for(let i=0;i<5;i++) platforms.push({x:(3+i*3)*TW, y:(RH-3)*TW, w:TW*2, h:TW/3, t:'p'});
+  // Gates
+  if(connections.up)    for(let dx=-1;dx<=1;dx++) gates.push({x:(midTileX+dx)*TW,y:0,w:TW,h:TW,t:'gate',dir:'up'});
+  if(connections.down)  for(let dx=-1;dx<=1;dx++) gates.push({x:(midTileX+dx)*TW,y:(RH-1)*TW,w:TW,h:TW*3,t:'gate',dir:'down'});
+  if(connections.left)  for(let dy=-1;dy<=1;dy++) gates.push({x:0,y:(midTileY+dy)*TW,w:TW,h:TW,t:'gate',dir:'left'});
+  if(connections.right) for(let dy=-1;dy<=1;dy++) gates.push({x:(RW-1)*TW,y:(midTileY+dy)*TW,w:TW,h:TW,t:'gate',dir:'right'});
+
+  // Build shop items for current hero class
+  const diff=Math.abs(depth);
+  const eligible = SHOP_WEAPONS.filter(w=>canUseWeapon(_currentHeroClass,w));
+  const pickedWeapons = eligible.sort(()=>Math.random()-0.5).slice(0,3);
+  const items=[];
+  const itemSlots=[
+    {x:4*TW,y:(RH-4)*TW},{x:7*TW,y:(RH-4)*TW},{x:10*TW,y:(RH-4)*TW},
+    {x:13*TW,y:(RH-4)*TW},{x:16*TW,y:(RH-4)*TW}
+  ];
+  pickedWeapons.forEach((w,i)=>{
+    items.push({type:'weapon',weapon:w,cost:w.shopCost+diff*10,bought:false,...itemSlots[i]});
+  });
+  // HP boost
+  items.push({type:'hpup', val:30+diff*5, cost:40+diff*8,  bought:false,...itemSlots[3]||{x:13*TW,y:(RH-4)*TW}});
+  // MP boost
+  items.push({type:'mpup', val:20+diff*5, cost:35+diff*6,  bought:false,...itemSlots[4]||{x:16*TW,y:(RH-4)*TW}});
+  // Heal potion (always available, cheap)
+  items.push({type:'heal', val:40+diff*5, cost:25+diff*4,  bought:false, x:1*TW+TW/2, y:(RH-4)*TW});
+
+  return { walls, platforms, gates, enemies:[], goldChest:null, healChest:null,
+    theme, connections, cleared:true, visited:true,
+    shop:{ items, merchantX:Math.floor(RW/2)*TW, merchantY:(RH-2)*TW-40 }
+  };
+}
+
+function connectRoom(gx,gy,fromDir){
+  // When entering a room, ensure the connecting neighbor knows it's connected
+  const k = roomKey(gx,gy);
+  if(!worldConns[k]) worldConns[k]={up:false,down:false,left:false,right:false};
+  worldConns[k][fromDir]=true;
+}
+
+// ============================================================
+// CASTLE UI
+// ============================================================
+let heirs=[],selectedHeir=0;
+function rnd(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function rndInt(a,b){ return a+Math.floor(Math.random()*(b-a+1)); }
+
+function switchTab(id,btn){ document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active')); document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); document.getElementById('tab-'+id).classList.add('active'); btn.classList.add('active'); }
+
+function showCastle(){ setScreen('castle-screen'); heirs=[buildHeir(),buildHeir()]; selectedHeir=0; renderUpgrades();renderClasses();renderHeirs();updateGold(); }
+function updateGold(){
+  document.getElementById('gold-display').textContent=state.gold;
+  const g2=document.getElementById('gold-display-2');
+  if(g2)g2.textContent=state.gold;
+}
+
+function buildHeir(){
+  const available=getUnlockedClasses();
+  const cls=rnd(available),up=state.upgrades;
+  const h={
+    name:FIRST_NAMES[Math.floor(Math.random()*FIRST_NAMES.length)]+' '+LAST_NAME,
+    cls,scale:1,goldMult:1+up.gold.effect(up.gold.level),
+    maxHp:cls.baseHp+up.hp.effect(up.hp.level), maxMp:cls.baseMp+up.mp.effect(up.mp.level),
+    atk:cls.baseAtk+up.atk.effect(up.atk.level), spd:cls.spd+up.spd.effect(up.spd.level),
+    dmgRed:up.dmgRed.effect(up.dmgRed.level), weaponId:cls.startWeapon,
+    critChance:(up.crit?up.crit.effect(up.crit.level):0),
+    hpRegen:(up.hpRegen?up.hpRegen.effect(up.hpRegen.level):0),
+    mpRegen:(up.mpRegen?up.mpRegen.effect(up.mpRegen.level):0),
+    specialCDMult:(up.cooldown?1-up.cooldown.effect(up.cooldown.level):1),
+  };
+  h.hp=h.maxHp;h.mp=h.maxMp;
+  h.hp=Math.max(1,Math.min(h.hp,h.maxHp));h.spd=Math.max(1,h.spd);
+  return h;
+}
+
+function renderUpgrades(){
+  const grid=document.getElementById('upgrade-grid');grid.innerHTML='';
+  Object.entries(state.upgrades).forEach(([,upg])=>{
+    if(upg.unlockBoss!==undefined && !state.defeatedBosses.has(upg.unlockBoss)){
+      const lock=document.createElement('div'); lock.className='upgrade-card'; lock.style.cssText='opacity:0.38;filter:grayscale(1);cursor:default;';
+      const bname=BOSS_DEFS&&BOSS_DEFS[upg.unlockBoss]?BOSS_DEFS[upg.unlockBoss].name:'un boss';
+      lock.innerHTML='<div class="upgrade-name">'+upg.name+'</div><div style="font-size:0.58rem;color:#664444;margin:2px 0">&#128274; Vaincre '+bname+'</div><div class="upgrade-cost" style="color:#664444">'+upg.desc+'</div>';
+      grid.appendChild(lock); return;
+    }
+    const cost=Math.floor(upg.cost*Math.pow(1.4,upg.level)),maxed=upg.level>=upg.max;
+    const div=document.createElement('div');div.className='upgrade-card'+(maxed?' maxed':'');
+    div.innerHTML=`<div class="upgrade-name">${upg.name}</div><div class="upgrade-level">${upg.level}/${upg.max}</div><div style="font-size:0.58rem;color:#a08060;margin:1px 0">${upg.desc||''}</div><div class="upgrade-cost">${maxed?'MAX':cost+' éc'}</div><div class="upgrade-bars">${Array(upg.max).fill(0).map((_,i)=>`<div class="upgrade-bar${i<upg.level?' filled':''}"></div>`).join('')}</div>`;
+    if(!maxed) div.addEventListener('pointerdown',()=>{ const c=Math.floor(upg.cost*Math.pow(1.4,upg.level)); if(state.gold>=c){state.gold-=c;upg.level++;renderUpgrades();updateGold();heirs=[buildHeir(),buildHeir()];renderHeirs();} });
+    grid.appendChild(div);
+  });
+}
+function renderHeirs(){
+  const list=document.getElementById('heirs-list');list.innerHTML='';
+  heirs.forEach((h,i)=>{
+    const div=document.createElement('div');div.className='heir-card'+(i===selectedHeir?' selected':'');
+    div.innerHTML=`<div class="heir-header"><div class="heir-name">${h.name.split(' ')[0]}</div><div class="heir-class">${h.cls.name}</div></div><div class="heir-stats"><span>HP:<span>${h.maxHp}</span></span><span>ATK:<span>${h.atk}</span></span><span>SPD:<span>${h.spd.toFixed(1)}</span></span><span>${getWeapon(h.weaponId).name}</span></div>`;
+    div.addEventListener('pointerdown',()=>{selectedHeir=i;renderHeirs();});
+    list.appendChild(div);
+  });
+}
+function renderClasses(){
+  const list=document.getElementById('class-unlock-list');
+  if(!list)return;
+  list.innerHTML='';
+  for(const cls of ALL_VOCATIONS){
+    const unlocked=state.unlockedClasses.has(cls.id);
+    const canAfford=state.gold>=cls.unlockCost;
+    const div=document.createElement('div');
+    div.style.cssText='background:var(--stone);border:2px solid '+(unlocked?'#d4722a':'var(--stone-light)')+';padding:0.65rem;margin-bottom:0.5rem;touch-action:manipulation;';
+    div.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+      <span style="font-family:Cinzel,serif;font-size:0.85rem;color:${unlocked?'#d4722a':'var(--text)'}">${cls.name}</span>
+      <span style="font-size:0.7rem;color:${unlocked?'#4caf50':'var(--gold)'}">${unlocked?'Débloqué':cls.unlockCost===0?'Gratuit':cls.unlockCost+' éc'}</span>
+    </div>
+    <div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.35rem">${cls.desc}</div>
+    <div style="display:flex;gap:0.4rem;font-size:0.62rem;color:var(--text-dim)">
+      <span>HP:<span style="color:var(--text)">${cls.baseHp}</span></span>
+      <span>ATK:<span style="color:var(--text)">${cls.baseAtk}</span></span>
+      <span>SPD:<span style="color:var(--text)">${cls.spd}</span></span>
+      <span style="color:var(--text)">${getWeapon(cls.startWeapon).name}</span>
+    </div>`;
+    if(!unlocked && cls.unlockCost>0){
+      div.style.cursor='pointer';
+      div.style.opacity=canAfford?'1':'0.5';
+      div.addEventListener('pointerdown',()=>{
+        if(state.gold>=cls.unlockCost){
+          state.gold-=cls.unlockCost;
+          state.unlockedClasses.add(cls.id);
+          updateGold();renderClasses();
+          heirs=[buildHeir(),buildHeir()];renderHeirs();
+        }
+      });
+    }
+    list.appendChild(div);
+  }
+}
+
+// ============================================================
+// GAME ENGINE
+// ============================================================
+let canvas,mapCanvas,ctx,mapCtx,animId,game=null;
+
+function setScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+
+// Input
+const joy={active:false,id:null,cx:0,cy:0,dx:0,dy:0};
+const btn={atk:false,special:false,jump:false,pickup:false};
+let kbKeys={};
+let inputSetup=false;
+
+function setupInput(){
+  if(inputSetup)return; inputSetup=true;
+  window.addEventListener('keydown',e=>{
+    kbKeys[e.code]=true;
+    if(!game)return;
+    if(e.code==='KeyJ'||e.code==='KeyX')doAttack();
+    if(e.code==='KeyK'||e.code==='KeyZ')doSpecial();
+    if((e.code==='KeyW'||e.code==='ArrowUp'||e.code==='Space')&&game.hero.onGround){game.hero.vy=-15;game.hero.onGround=false;}
+    if(e.code==='KeyF'||e.code==='KeyQ')doPickup();
+  },{passive:true});
+  window.addEventListener('keyup',e=>{kbKeys[e.code]=false;},{passive:true});
+
+  const zone=document.getElementById('joystick-zone'),knob=document.getElementById('joystick-knob');
+  const JR=40;
+  function joyReset(){ joy.active=false;joy.id=null;joy.dx=0;joy.dy=0;knob.style.left='39px';knob.style.top='39px'; }
+  zone.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    // Toujours réinitialiser si on reçoit un nouveau pointerdown — évite le blocage
+    joyReset();
+    joy.active=true; joy.id=e.pointerId;
+    const r=document.getElementById('joystick-bg').getBoundingClientRect();
+    joy.cx=r.left+r.width/2; joy.cy=r.top+r.height/2;
+    try{ zone.setPointerCapture(e.pointerId); }catch(_){}
+  },{passive:false});
+  zone.addEventListener('pointermove',e=>{
+    if(!joy.active||e.pointerId!==joy.id)return;
+    e.preventDefault();
+    const dx=e.clientX-joy.cx,dy=e.clientY-joy.cy,d=Math.sqrt(dx*dx+dy*dy),cap=Math.min(d,JR),a=Math.atan2(dy,dx);
+    joy.dx=Math.cos(a)*cap/JR; joy.dy=Math.sin(a)*cap/JR;
+    knob.style.left=(50+Math.cos(a)*cap-21)+'px'; knob.style.top=(50+Math.sin(a)*cap-21)+'px';
+  },{passive:false});
+  const eJ=e=>{ if(e.pointerId!==undefined && e.pointerId!==joy.id)return; joyReset(); };
+  zone.addEventListener('pointerup',eJ);
+  zone.addEventListener('pointercancel',eJ);
+  zone.addEventListener('lostpointercapture',eJ);
+  // Si l'app passe en arrière-plan ou que le doigt est perdu au niveau OS
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden) joyReset(); });
+  window.addEventListener('blur', joyReset);
+
+  function sBtn(id,key,fn){ const el=document.getElementById(id); if(!el)return; el.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();btn[key]=true;el.classList.add('pressed');if(fn)fn();},{passive:false}); const up=()=>{btn[key]=false;el.classList.remove('pressed');}; el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('lostpointercapture',up); }
+  sBtn('btn-jump','jump',()=>{if(game&&game.hero.onGround){game.hero.vy=-12;game.hero.onGround=false;}});
+  sBtn('btn-atk','atk',doAttack);
+  sBtn('btn-special','special',doSpecial);
+  sBtn('btn-pickup','pickup',doPickup);
+}
+
+// ============================================================
+// START
+// ============================================================
+function startRun(){
+  // MODE TEST
+  if(TEST_MODE){
+    state.gold=99999;
+    ALL_VOCATIONS.forEach(v=>state.unlockedClasses.add(v.id));
+    Object.values(state.upgrades).forEach(u=>{ u.level=u.max; });
+  }
+  // Régénérer si les héritiers ne sont pas encore créés
+  if(!heirs||heirs.length===0){ heirs=[buildHeir(),buildHeir()]; selectedHeir=0; }
+  const heir=heirs[selectedHeir];
+  if(!heir||!heir.cls){ heirs=[buildHeir(),buildHeir()]; selectedHeir=0; }
+  const validHeir=heirs[selectedHeir];
+  if(!validHeir){ console.error('No valid heir'); return; }
+  _currentHeroClass = validHeir.cls.id;
+  worldMap={};worldConns={};
+  // Pre-generate starting room and surroundings
+  connectRoom(0,0,'down'); // ensure entry
+  ensureRoom(0,0,0);
+
+  if(TEST_MODE){ const leg=SHOP_WEAPONS.filter(w=>canUseWeapon(validHeir.cls.id,w)); if(leg.length) validHeir.weaponId=leg[Math.floor(Math.random()*leg.length)].id; }
+  const w=getWeapon(validHeir.weaponId||'sword');
+  game={
+    hero:{...validHeir,
+      x:3*TW,y:6*TW,w:Math.round(46*(validHeir.scale||1)),h:Math.round(58*(validHeir.scale||1)),
+      vx:0,vy:0,onGround:false,facing:1,
+      attackCooldown:0,attackAnim:0,
+      invincible:0,furious:0,dodging:0,
+      shielded:0,shieldReflect:false,
+      dropThrough:0,onPlatform:false,
+      lifeSteal:false,
+      weapon:w, weaponId:validHeir.weaponId||'sword',
+      cx:0,cy:0,
+    },
+    gx:0,gy:0, // world grid pos
+    kills:0,runGold:0,roomsVisited:1,runStartTime:Date.now(),runStartTime:Date.now(),
+    projectiles:[],floats:[],
+    _jumpHeld:false,_joyJumpHeld:false,
+    transitioning:false,transDir:null,transProgress:0,
+    bestWeapon:'Lame Scellée',
+  };
+  // Load starting room into active
+  loadRoom(0,0);
+  setScreen('game-screen');
+  // Charger les sprites PNG (silencieux si fichiers absents — fallback auto)
+  canvas=document.getElementById('game-canvas');
+  mapCanvas=document.getElementById('map-canvas');
+  const wrap=document.getElementById('canvas-wrap');
+  canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;
+  mapCanvas.width=110;mapCanvas.height=90;
+  ctx=canvas.getContext('2d');
+  mapCtx=mapCanvas.getContext('2d');
+  setupInput();
+  if(animId)cancelAnimationFrame(animId);
+  gameLoop();
+}
+
+// Sauvegarde profonde d'une salle (ennemis + coffres)
+function saveRoomSnapshot(r){
+  r._snapshot={
+    enemies: r.enemies.map(e=>({...e})),
+    goldChest: r.goldChest ? {...r.goldChest} : null,
+    healChest: r.healChest ? {...r.healChest} : null,
+    cleared: r.cleared,
+  };
+}
+
+// Sauvegarde l'état courant avant de quitter
+function snapshotCurrentRoom(){
+  const r=game&&game.room;
+  if(r&&!r.cleared&&!r.isShop) saveRoomSnapshot(r);
+}
+
+function loadRoom(gx,gy){
+  const depth=Math.abs(gx)+Math.abs(gy);
+  ensureRoom(gx,gy,depth);
+  const r=worldMap[roomKey(gx,gy)];
+  // Salle non libérée avec snapshot : restaurer l'état exact de la dernière visite
+  if(!r.cleared && !r.isShop && r._snapshot){
+    r.enemies = r._snapshot.enemies.map(e=>({...e}));
+    r.goldChest = r._snapshot.goldChest ? {...r._snapshot.goldChest} : null;
+    r.healChest = r._snapshot.healChest ? {...r._snapshot.healChest} : null;
+  }
+  // Boss room : reset à pleine vie
+  if(r.isBoss && !r.cleared && r.enemies[0]){
+    r.enemies[0].hp=r.enemies[0].maxHp;
+  }
+  // Première visite d'une salle non libérée : créer le snapshot initial
+  if(!r.cleared && !r.isShop && !r._snapshot){
+    saveRoomSnapshot(r);
+  }
+  game.room = worldMap[roomKey(gx,gy)];
+  game.gx=gx;game.gy=gy;
+}
+
+// ============================================================
+// ROOM TRANSITION
+// ============================================================
+function tryTransition(){
+  const g=game,h=g.hero,r=g.room;
+  if(g.transitioning)return;
+  // Salle non libérée = on peut fuir uniquement vers les salles déjà libérées
+  if(!r.cleared){
+    const canFlee=(dir)=>{
+      let ngx=g.gx,ngy=g.gy;
+      if(dir==='left')ngx--;else if(dir==='right')ngx++;
+      else if(dir==='up')ngy--;else ngy++;
+      const dest=worldMap[roomKey(ngx,ngy)];
+      return dest&&dest.cleared;
+    };
+    const W2=RW*TW,H2=RH*TW,midX2=W2/2,midY2=H2/2,cx2=r.connections;
+    if(cx2.left &&h.x<=TW*1.2        &&Math.abs(h.cy-midY2)<TW*1.5&&canFlee('left')) {startTransition('left'); return;}
+    if(cx2.right&&h.x+h.w>=W2-TW*1.2 &&Math.abs(h.cy-midY2)<TW*1.5&&canFlee('right')){startTransition('right');return;}
+    if(cx2.up   &&h.y<=TW*1.2        &&Math.abs(h.cx-midX2)<TW*1.5&&canFlee('up'))   {startTransition('up');   return;}
+    if(cx2.down &&h.y+h.h>=H2-TW*0.5 &&Math.abs(h.cx-midX2)<TW*1.5&&canFlee('down')) {startTransition('down'); return;}
+    return;
+  }
+  const W=RW*TW,H=RH*TW;
+  const midX=W/2, midY=H/2;
+  const cx=r.connections;
+  // Check openings proximity
+  // Left opening: x~0, y~midY
+  if(cx.left && h.x<=TW*1.2 && Math.abs(h.cy-midY)<TW*1.5){
+    startTransition('left'); return;
+  }
+  // Right opening: x~W, y~midY
+  if(cx.right && h.x+h.w>=W-TW*1.2 && Math.abs(h.cy-midY)<TW*1.5){
+    startTransition('right'); return;
+  }
+  // Up opening: x~midX, y~0
+  if(cx.up && h.y<=TW*1.2 && Math.abs(h.cx-midX)<TW*1.5){
+    startTransition('up'); return;
+  }
+  // Down opening: x~H, y~midY — player falls through bottom
+  if(cx.down && h.y+h.h>=H-TW*0.5 && Math.abs(h.cx-midX)<TW*1.5){
+    startTransition('down'); return;
+  }
+}
+
+function startTransition(dir){
+  game.transitioning=true;
+  game.transDir=dir;
+  game.transProgress=0;
+}
+
+function applyTransition(){
+  const g=game;
+  g.transProgress+=0.04;
+  if(g.transProgress>=1){
+    // Move to new room
+    let ngx=g.gx, ngy=g.gy;
+    if(g.transDir==='left')  { ngx--; }
+    if(g.transDir==='right') { ngx++; }
+    if(g.transDir==='up')    { ngy--; }
+    if(g.transDir==='down')  { ngy++; }
+
+    // Ensure connection back
+    const backDir={left:'right',right:'left',up:'down',down:'up'}[g.transDir];
+    const nk=roomKey(ngx,ngy);
+    if(!worldConns[nk]) worldConns[nk]={up:false,down:false,left:false,right:false};
+    worldConns[nk][backDir]=true;
+
+    const depth=Math.abs(ngx)+Math.abs(ngy);
+    ensureRoom(ngx,ngy,depth);
+    if(!worldMap[roomKey(ngx,ngy)].visited){
+      worldMap[roomKey(ngx,ngy)].visited=true;
+      g.roomsVisited++;
+    }
+    loadRoom(ngx,ngy);
+
+    // Place hero at entry point of new room
+    const h=g.hero, W=RW*TW, H=RH*TW;
+    const midX=W/2-h.w/2;
+    if(g.transDir==='left')  { h.x=W-TW*2-h.w;  h.y=H/2-h.h/2; }
+    if(g.transDir==='right') { h.x=TW*2;          h.y=H/2-h.h/2; }
+    // Coming from below: give a small upward jump so hero clears the ceiling opening
+    if(g.transDir==='up')    { h.x=midX; h.y=H-TW*1.5-h.h; h.vy=-8; }
+    // Coming from above: start near top, small downward velocity
+    if(g.transDir==='down')  { h.x=midX; h.y=TW*1.2; h.vy=3; }
+    h.vx=0;
+    // Reset drop-through so we don't instantly fall back through the floor
+    h.dropThrough=0;
+    h.onGround=false;
+
+    // Sauvegarder l'état de la salle avant de partir
+    snapshotCurrentRoom();
+    g.transitioning=false;g.transDir=null;g.transProgress=0;
+  }
+}
+
+// ============================================================
+// PHYSICS
+// ============================================================
+const GRAVITY=0.38;
+function overlap(a,b){ return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y; }
+function collide(obj,all,dropThrough){
+  obj.onGround=false;
+  for(const p of all){
+    if(!overlap(obj,p))continue;
+    if(p.t==='p'){
+      // Skip one-way platforms if dropping through
+      if(dropThrough)continue;
+      if(obj.y+obj.h-obj.vy<=p.y+4&&obj.vy>=0){obj.y=p.y-obj.h;obj.vy=0;obj.onGround=true;}
+    } else {
+      const oL=(obj.x+obj.w)-p.x,oR=(p.x+p.w)-obj.x,oT=(obj.y+obj.h)-p.y,oB=(p.y+p.h)-obj.y;
+      const mn=Math.min(oL,oR,oT,oB);
+      if(mn===oT&&obj.vy>=0){obj.y=p.y-obj.h;obj.vy=0;obj.onGround=true;}
+      else if(mn===oB&&obj.vy<0){obj.y=p.y+p.h;obj.vy=0;}
+      else if(mn===oL){obj.x=p.x-obj.w;obj.vx=0;}
+      else if(mn===oR){obj.x=p.x+p.w;obj.vx=0;}
+    }
+  }
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+function update(){
+  if(!game)return;
+  const g=game,h=g.hero,r=g.room;
+  // Gates block passages while room not cleared
+  // Gates : bloquer seulement les directions vers salles non libérées
+  const activeGates = r.cleared ? [] : r.gates.filter(gate=>{
+    let ngx=g.gx,ngy=g.gy;
+    if(gate.dir==='left')ngx--;else if(gate.dir==='right')ngx++;
+    else if(gate.dir==='up')ngy--;else ngy++;
+    const dest=worldMap[roomKey(ngx,ngy)];
+    return !dest||!dest.cleared; // bloquer si destination inconnue ou non libérée
+  });
+  const all=[...r.walls,...r.platforms,...activeGates];
+  const roomW=RW*TW,roomH=RH*TW;
+
+  if(g.transitioning){ applyTransition(); return; }
+
+  // Input
+  const left=(kbKeys['ArrowLeft']||kbKeys['KeyA'])||joy.dx<-0.25;
+  const right=(kbKeys['ArrowRight']||kbKeys['KeyD'])||joy.dx>0.25;
+  const jumpKb=kbKeys['ArrowUp']||kbKeys['KeyW']||kbKeys['Space'];
+  const downKb=kbKeys['ArrowDown']||kbKeys['KeyS']||joy.dy>0.55;
+
+  // Drop through platform: hold down + press jump while standing on a 'p' tile
+  if(!g._dropHeld && downKb && h.onGround && h.onPlatform){
+    h.dropThrough=8; // frames of drop-through, enough to clear the platform
+    h.vy=2;
+    h.onGround=false;
+  }
+  g._dropHeld=downKb;
+  if(h.dropThrough>0) h.dropThrough--;
+
+  if(jumpKb&&!g._jumpHeld&&h.onGround){h.vy=-15;h.onGround=false;h.dropThrough=0;}
+  g._jumpHeld=jumpKb;
+  if(joy.dy<-0.55&&!g._joyJumpHeld&&h.onGround){h.vy=-15;h.onGround=false;h.dropThrough=0;}
+  g._joyJumpHeld=joy.dy<-0.55;
+
+  if(h.dodging>0){h.dodging--;h.invincible=Math.max(h.invincible,h.dodging);}
+  else if(left){h.vx=-h.spd;h.facing=-1;}
+  else if(right){h.vx=h.spd;h.facing=1;}
+  else h.vx*=0.68;
+
+  h.vy+=GRAVITY;h.x+=h.vx;h.y+=h.vy;
+  const prevOnGround=h.onGround;
+  collide(h,all,h.dropThrough>0);
+  // Detect if standing on a one-way platform (for drop-through logic)
+  h.onPlatform=false;
+  if(h.onGround){
+    for(const p of r.platforms){
+      if(p.t==='p'&&h.y+h.h>=p.y&&h.y+h.h<=p.y+8&&h.x+h.w>p.x&&h.x<p.x+p.w){ h.onPlatform=true; break; }
+    }
+  }
+  h.x=Math.max(0,Math.min(roomW-h.w,h.x));
+  h.cx=h.x+h.w/2;h.cy=h.y+h.h/2;
+
+  if(h.attackCooldown>0)h.attackCooldown--;
+  if(h.attackAnim>0)h.attackAnim--;
+  if(h.invincible>0)h.invincible--;
+  if(h.furious>0)h.furious--;
+
+  // Weapon attack hitbox
+  const wp=h.weapon;
+  if(h.attackAnim>wp.spd*0.5&&!wp.proj){
+    const range=wp.range*(h.scale||1);
+    const ax=h.facing>0?h.cx:h.cx-range;
+    for(const e of r.enemies){
+      if(e.invincible>0||e.dead)continue;
+      if(ax<e.cx+e.w*0.5+4&&ax+range>e.cx-e.w*0.5-4&&h.y<e.y+e.h&&h.y+h.h>e.y){
+        let dmg=Math.round(h.atk*wp.dmgMult*(h.furious>0?1.5:1));
+        if((h.critChance||0)>0&&Math.random()<h.critChance){ dmg=Math.round(dmg*1.8); addFloat('CRITIQUE!',e.cx,e.y-20,'#ffee00'); }
+        if(wp.id==='sickle') e.bleed=(e.bleed||0)+3;
+        hitEnemy(e,dmg);
+        if(h.lifeSteal)h.hp=Math.min(h.maxHp,h.hp+3);
+        if(wp.id!=='whip')h.attackAnim=0; // whip can hit multiple
+        break;
+      }
+    }
+  }
+
+  // Bleed tick
+  for(const e of r.enemies){
+    if(e.bleed>0){e.bleed--;if(e.aiTimer%8===0){e.hp--;addFloat('-1',e.cx,e.y,'#ff6666');}}
+  }
+
+  // Enemies
+  const diff=Math.abs(g.gx)+Math.abs(g.gy);
+  for(const e of r.enemies){
+    if(e.dead)continue;
+    e.aiTimer++;
+    if(!e.flying)e.vy+=GRAVITY; else e.vy*=0.9;
+    e.def.ai(e,h,g,diff);
+    e.x+=e.vx;e.y+=e.vy;
+    if(!e.flying){
+      collide(e,all);
+      e.x=Math.max(TW+2,Math.min(roomW-TW-e.w-2,e.x));
+    } else {
+      e.x=Math.max(TW+2,Math.min(roomW-TW-e.w-2,e.x));
+      e.y=Math.max(TW+2,Math.min(roomH-TW*2-e.h,e.y));
+    }
+    e.cx=e.x+e.w/2;e.cy=e.y+e.h/2;
+    if(e.invincible>0)e.invincible--;
+    e.attackTimer++;
+    // Contact damage
+    if(!e.flying&&e.attackTimer>60&&h.invincible===0){
+      const cdx=Math.abs(h.cx-e.cx)-(h.w/2+e.w/2);
+      const cdy=Math.abs(h.cy-e.cy)-(h.h/2+e.h/2);
+      if(cdx<10&&cdy<10){
+        const dmg=Math.round(e.atk*(1-(h.dmgRed||0)));
+        if(h.shieldReflect&&h.invincible>0){
+          hitEnemy(e,Math.floor(dmg*0.8));addFloat('DÉVIÉ!',h.cx,h.y-20,'#d4722a');
+        } else {
+          h.hp-=TEST_MODE?0:dmg;h.invincible=42;h.vx=e.facing*5;h.vy=-5;
+          addFloat('-'+dmg,h.cx,h.y,'#ff4444');
+        }
+        e.attackTimer=0;
+      }
+    }
+  }
+
+  // Projectiles
+  g.projectiles=g.projectiles.filter(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.life--;
+    if(p.foe&&h.invincible===0){
+      const dx=Math.abs(h.cx-(p.x+p.w/2))-(h.w/2+p.w/2);
+      const dy=Math.abs(h.cy-(p.y+p.h/2))-(h.h/2+p.h/2);
+      if(dx<5&&dy<5){
+        if(p.web){h.vx*=0.25;h.vy*=0.25;addFloat('ENLACÉ!',h.cx,h.y,'#fff8');}
+        else{
+          const dmg=Math.round(p.dmg*(1-(h.dmgRed||0)));
+          if(h.shieldReflect&&h.invincible>0){
+            for(const en of r.enemies){if(!en.dead&&Math.hypot(en.cx-h.cx,en.cy-h.cy)<180) hitEnemy(en,Math.floor(dmg*0.8));}
+            addFloat('DÉVIÉ!',h.cx,h.y-20,'#d4722a');
+          } else { h.hp-=TEST_MODE?0:dmg;h.invincible=28;addFloat('-'+dmg,h.cx,h.y,'#ff4444'); }
+        }
+        return false;
+      }
+    }
+    if(!p.foe){
+      for(const e of r.enemies){
+        if(e.invincible>0||e.dead)continue;
+        const dx=Math.abs(e.cx-(p.x+p.w/2))-(e.w/2+p.w/2);
+        const dy=Math.abs(e.cy-(p.y+p.h/2))-(e.h/2+p.h/2);
+        if(dx<5&&dy<5){
+          hitEnemy(e,p.dmg);
+          if(!p.piercing) p.life=0;
+          break;
+        }
+      }
+    }
+    return p.life>0&&p.x>TW&&p.x<roomW-TW&&p.y>TW&&p.y<roomH-TW;
+  });
+
+  // Gold chest
+  const gc=r.goldChest;
+  if(gc&&!gc.collected){
+    const cdx=Math.abs(h.cx-(gc.x+gc.w/2))-(h.w/2+gc.w/2);
+    const cdy=Math.abs(h.cy-(gc.y+gc.h/2))-(h.h/2+gc.h/2);
+    if(cdx<10&&cdy<10){ gc.collected=true; const amt=Math.floor(gc.amount*(h.goldMult||1)); g.runGold+=amt; addFloat('+'+amt+' éc',gc.x,gc.y,'#d4722a'); }
+  }
+
+  // Heal chest
+  const hc2=r.healChest;
+  if(hc2&&!hc2.collected){
+    const cdx=Math.abs(h.cx-(hc2.x+hc2.w/2))-(h.w/2+hc2.w/2);
+    const cdy=Math.abs(h.cy-(hc2.y+hc2.h/2))-(h.h/2+hc2.h/2);
+    if(cdx<10&&cdy<10){
+      hc2.collected=true;
+      const healed=Math.min(hc2.heal, h.maxHp-h.hp);
+      h.hp=Math.min(h.maxHp, h.hp+hc2.heal);
+      addFloat('+'+healed+' HP',hc2.x,hc2.y,'#ff4466');
+    }
+  }
+
+  // Dead enemies
+  for(const e of r.enemies){
+    if(!e.dead&&e.hp<=0){
+      e.dead=true;
+      const gAmt=Math.floor((9+diff*4)*(h.goldMult||1));
+      g.runGold+=gAmt;g.kills++;
+      addFloat('+'+gAmt+' éc',e.x,e.y,'#d4722a');
+    }
+  }
+
+  // keep dead enemies for drop tracking but skip in AI
+  const aliveCount=r.enemies.filter(e=>!e.dead).length;
+  if(aliveCount===0&&!r.cleared){
+    r.cleared=true;
+    if(r.isBoss){
+      addFloat('BOSS VAINCU!',h.cx,h.y-60,'#dd00ff');
+      state.defeatedBosses.add(r.bossIdx);
+      if(r.bossIdx>=BOSS_DEFS.length-1){ setTimeout(showVictory,1400); return; }
+    } else {
+      addFloat('Voie ouverte!',h.x,h.y-40,'#d4722a');
+    }
+  }
+
+  // Try room transition
+  tryTransition(); // appelé toujours — gère le blocage en interne
+
+  g.floats=g.floats.filter(f=>{f.life--;f.y-=0.6;return f.life>0;});
+
+  // Regen passive HP/MP (upgrades débloquées après boss)
+  if(!g._regenTick) g._regenTick=0;
+  if(++g._regenTick%60===0){
+    if(h.hpRegen&&h.hp<h.maxHp) h.hp=Math.min(h.maxHp,h.hp+h.hpRegen);
+    if(h.mpRegen&&h.mp<h.maxMp) h.mp=Math.min(h.maxMp,h.mp+h.mpRegen);
+  }
+
+  // Regen passif HP/MP
+  if(g._regenTick===undefined) g._regenTick=0;
+  g._regenTick++;
+  if(g._regenTick%60===0){
+    if(h.hpRegen&&h.hp<h.maxHp) h.hp=Math.min(h.maxHp,h.hp+h.hpRegen);
+    if(h.mpRegen&&h.mp<h.maxMp) h.mp=Math.min(h.maxMp,h.mp+h.mpRegen);
+  }
+
+  // Camera — room fits canvas if small, else scroll
+  const camMaxX=roomW-canvas.width;
+  const camMaxY=roomH-canvas.height+44;
+  g.camX=Math.max(0,Math.min(camMaxX,h.cx-canvas.width/2));
+  g.camY=Math.max(0,Math.min(camMaxY,h.cy-canvas.height/2));
+  if(roomW<=canvas.width)g.camX=0;
+  if(roomH<=canvas.height-44)g.camY=0;
+
+  // UI
+  document.getElementById('hp-bar').style.width=Math.max(0,h.hp/h.maxHp*100)+'%';
+  document.getElementById('mp-bar').style.width=(h.mp/h.maxMp*100)+'%';
+  document.getElementById('ui-enemies').textContent=r.enemies.filter(e=>!e.dead).length;
+  document.getElementById('ui-gold').textContent=g.runGold;
+  document.getElementById('ui-rooms').textContent=g.roomsVisited;
+  document.getElementById('ui-hero-name').textContent=h.cls.name+' '+h.name.split(' ')[0];
+  document.getElementById('ui-weapon').textContent=h.weapon.name;
+
+  if(h.hp<=0)die();
+}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+function hitEnemy(e,dmg){
+  if(e.dead)return;
+  e.hp-=dmg;e.invincible=14;e.vx=game.hero.facing*4;if(!e.flying)e.vy=-3;
+  addFloat('-'+dmg,e.cx,e.y,'#fff');
+  // Gain de mana au kill
+  if(e.hp<=0&&game.hero){
+    const gain=Math.round(5+e.def.hpMul*3);
+    game.hero.mp=Math.min(game.hero.maxMp,game.hero.mp+gain);
+    addFloat('+'+gain+' MP',e.cx,e.y-16,'#4a90d9');
+  }
+}
+
+function doAttack(){
+  if(!game||!game.hero)return;
+  const h=game.hero,wp=h.weapon;
+  if(h.attackCooldown>0)return;
+  h.attackCooldown=wp.spd;h.attackAnim=wp.spd;
+  if(wp.proj){
+    game.projectiles.push({x:h.cx+(h.facing>0?h.w/2:-(h.w/2+10)),y:h.cy,
+      vx:h.facing*wp.projSpd,vy:0,w:12,h:12,foe:false,
+      dmg:Math.round(h.atk*wp.dmgMult*(h.furious>0?1.5:1)),
+      color:wp.color,life:200});
+  }
+}
+
+function doSpecial(){
+  if(!game)return;const h=game.hero;
+  if(h.mp<20)return;
+  h.mp=Math.max(0,h.mp-20);
+  const id=h.cls.id;
+  if(id==='chevalier'){
+    // Bouclier temporaire — invincible + ralentissement
+    h.invincible=150;
+    h.shielded=150;
+    h.vx*=0.2;
+    addFloat('SCEAU!',h.cx,h.y-20,'#d4722a');
+  }
+  else if(id==='mage'){
+    // Nova de zone — 8 projectiles en étoile autour du mage
+    for(let i=0;i<8;i++){
+      const angle=(i/8)*Math.PI*2;
+      game.projectiles.push({
+        x:h.cx,y:h.cy,
+        vx:Math.cos(angle)*8,vy:Math.sin(angle)*8,
+        w:14,h:14,foe:false,
+        dmg:h.atk*2.0,color:'#aa44ff',life:80
+      });
+    }
+    h.invincible=20;
+    addFloat('RUNE!',h.cx,h.y-20,'#aa44ff');
+  }
+  else if(id==='voleur'){
+    // Dash invincible
+    h.dodging=30;h.invincible=35;h.vx=h.facing*13;
+    addFloat('ÉCLIPSE!',h.cx,h.y-20,'#9c27b0');
+  }
+  else if(id==='barbare'){
+    // Mode furie
+    h.furious=180;addFloat('RAGE!',h.cx,h.y-20,'#cc1111');
+  }
+  else if(id==='archer'){
+    // Triple tir en eventail
+    for(let i=0;i<3;i++) setTimeout(()=>{if(game) game.projectiles.push({x:h.cx,y:h.cy,vx:h.facing*10,vy:(i-1)*2.5,w:8,h:5,foe:false,dmg:h.atk*1.8,color:'#88cc44',life:120});},i*100);
+    addFloat('SALVE!',h.cx,h.y-20,'#4caf50');
+  }
+  else if(id==='paladin'){
+    // Aura de soin + bouclier temporaire
+    const healed=Math.floor(h.maxHp*0.18);
+    h.hp=Math.min(h.maxHp,h.hp+healed);
+    h.invincible=90; // ~1.5s invincible
+    h.shielded=120;  // flag visuel
+    addFloat('+'+healed+' SOIN',h.cx,h.y-20,'#f0c040');
+    if(game.room) for(const e of game.room.enemies){
+      if(!e.dead&&Math.hypot(e.cx-h.cx,e.cy-h.cy)<120) hitEnemy(e,Math.floor(h.atk*1.5));
+    }
+  }
+
+}
+
+function doPickup(){
+  if(!game)return;
+  const r=game.room,h=game.hero;
+  // Merchant shop interactions
+  if(r.shop){
+    for(const item of r.shop.items){
+      if(item.bought)continue;
+      const ix=item.x+16,iy=item.y+16;
+      const cdx=Math.abs(h.cx-ix)-(h.w/2+22);
+      const cdy=Math.abs(h.cy-iy)-(h.h/2+22);
+      if(cdx<10&&cdy<10){
+        if(item.type==='weapon'){
+          if(!canUseWeapon(h.cls.id,item.weapon)){
+            addFloat('Incompatible',h.cx,h.y-20,'#ff4444'); return;
+          }
+          if(game.runGold<item.cost){ addFloat('Éclats insuffisants',h.cx,h.y-20,'#ff4444'); return; }
+          game.runGold-=item.cost; item.bought=true;
+          const old=h.weapon; h.weapon=item.weapon; h.weaponId=item.weapon.id;
+          if(item.weapon.dmgMult>old.dmgMult) game.bestWeapon=item.weapon.name;
+          addFloat(item.weapon.name+'!',h.cx,h.y-20,'#ffcc00');
+          return;
+        }
+        if(item.type==='hpup'){
+          if(game.runGold<item.cost){ addFloat('Éclats insuffisants',h.cx,h.y-20,'#ff4444'); return; }
+          game.runGold-=item.cost; item.bought=true;
+          h.maxHp+=item.val; h.hp=Math.min(h.maxHp,h.hp+item.val);
+          addFloat('+'+item.val+' HP MAX',h.cx,h.y-20,'#ff6688');
+          return;
+        }
+        if(item.type==='mpup'){
+          if(game.runGold<item.cost){ addFloat('Éclats insuffisants',h.cx,h.y-20,'#ff4444'); return; }
+          game.runGold-=item.cost; item.bought=true;
+          h.maxMp+=item.val; h.mp=Math.min(h.maxMp,h.mp+item.val);
+          addFloat('+'+item.val+' MP MAX',h.cx,h.y-20,'#88aaff');
+          return;
+        }
+        if(item.type==='heal'){
+          if(game.runGold<item.cost){ addFloat('Éclats insuffisants',h.cx,h.y-20,'#ff4444'); return; }
+          game.runGold-=item.cost; item.bought=true;
+          const healed=Math.min(item.val,h.maxHp-h.hp); h.hp=Math.min(h.maxHp,h.hp+item.val);
+          addFloat('+'+healed+' HP',h.cx,h.y-20,'#ff4466');
+          return;
+        }
+      }
+    }
+  }
+}
+
+function addFloat(text,x,y,color){ if(game)game.floats.push({text,x,y,color,life:65}); }
+
+// ============================================================
+// DRAW
+// ============================================================
+function drawRoomBackground(ctx, W, H, theme){
+  ctx.fillStyle=theme.bg;
+  ctx.fillRect(0,0,W,H);
+  const n=theme.name;
+
+  if(n==='Antichambre'){
+    ctx.save();
+    const bw=52,bh=26;
+    const rows=Math.ceil(H/bh)+1,cols=Math.ceil(W/bw)+2;
+    for(let row=0;row<rows;row++){
+      const off=(row%2===0)?0:bw/2;
+      for(let col=-1;col<cols;col++){
+        const tx=col*bw+off,ty=row*bh;
+        const v=((row*7+col*13)%8);
+        ctx.fillStyle=`rgb(${44+v},${22+v},${16+v})`;
+        ctx.fillRect(tx+1,ty+1,bw-2,bh-2);
+        ctx.fillStyle='rgba(255,160,80,0.07)';ctx.fillRect(tx+2,ty+2,bw-4,5);
+        ctx.fillStyle='rgba(0,0,0,0.28)';ctx.fillRect(tx+1,ty+bh-3,bw-2,2);
+      }
+      ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,row*bh,W,1);
+    }
+    for(let row=0;row<rows;row++){
+      const off=(row%2===0)?0:bw/2;
+      for(let col=-1;col<cols;col++){
+        ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(col*bw+off,row*bh,1,bh);
+      }
+    }
+    ctx.restore();
+
+  }else if(n==='Geôles'){
+    ctx.save();
+    const sw=44,sh=44;
+    for(let row=0;row<Math.ceil(H/sh)+1;row++){
+      for(let col=0;col<Math.ceil(W/sw)+1;col++){
+        const v=((row*11+col*7)%12);
+        ctx.fillStyle=`rgb(${28+v},${24+v},${30+v})`;
+        ctx.fillRect(col*sw+1,row*sh+1,sw-2,sh-2);
+        if((row*3+col*5)%7===0){ctx.fillStyle='rgba(30,60,20,0.18)';ctx.fillRect(col*sw+1,row*sh+1,8,8);}
+      }
+      ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(0,row*sh,W,2);
+    }
+    for(let col=0;col<Math.ceil(W/sw)+1;col++){
+      ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(col*sw,0,2,H);
+    }
+    for(let i=0;i<8;i++){
+      const mx=((i*137)%W);
+      const grd=ctx.createLinearGradient(mx,0,mx,H);
+      grd.addColorStop(0,'rgba(0,0,0,0)');grd.addColorStop(0.5,'rgba(20,40,60,0.12)');grd.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=grd;ctx.fillRect(mx,0,3,H);
+    }
+    ctx.restore();
+
+  }else if(n==='Archives'){
+    ctx.save();
+    const lw=W/5;
+    for(let col=0;col<5;col++){
+      ctx.fillStyle=col%2===0?'#160e06':'#1e1408';
+      ctx.fillRect(col*lw,0,lw,H);
+      for(let grain=0;grain<6;grain++){
+        ctx.fillStyle='rgba(100,60,10,0.07)';
+        ctx.fillRect(col*lw+((grain*31)%lw),0,1,H);
+      }
+    }
+    for(let row=0;row<Math.ceil(H/32)+1;row++){
+      ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fillRect(0,row*32,W,1);
+    }
+    for(let i=0;i<6;i++){
+      ctx.fillStyle='rgba(10,0,30,0.15)';
+      ctx.beginPath();ctx.ellipse(((i*173)%W),((i*97)%H),14+i*2,8+i,0,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+
+  }else if(n==='La Flèche'){
+    ctx.save();
+    const pw=60,ph=40;
+    for(let row=0;row<Math.ceil(H/ph)+1;row++){
+      const off=(row%2===0)?0:pw/2;
+      for(let col=-1;col<Math.ceil(W/pw)+2;col++){
+        const v=((row*5+col*9)%10);
+        ctx.fillStyle=`rgb(${16+v},${24+v},${38+v})`;
+        ctx.fillRect(col*pw+off+1,row*ph+1,pw-2,ph-2);
+        ctx.fillStyle='rgba(100,180,255,0.04)';ctx.fillRect(col*pw+off+2,row*ph+2,pw-4,10);
+      }
+      ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(0,row*ph,W,1);
+    }
+    ctx.strokeStyle='rgba(160,210,255,0.06)';ctx.lineWidth=1;
+    for(let i=0;i<14;i++){
+      const wy=((i*73)%H);
+      ctx.beginPath();ctx.moveTo(0,wy);ctx.lineTo(W,wy-30+((i*17)%60));ctx.stroke();
+    }
+    ctx.restore();
+
+  }else if(n==='Entrailles'){
+    ctx.save();
+    ctx.fillStyle='#0a0508';ctx.fillRect(0,0,W,H);
+    for(let i=0;i<20;i++){
+      const sx=((i*137)%W),sy=((i*97)%H),ex=((i*213+100)%W),ey=((i*157+80)%H);
+      const grd=ctx.createLinearGradient(sx,sy,ex,ey);
+      grd.addColorStop(0,'rgba(120,20,60,0)');grd.addColorStop(0.5,'rgba(120,20,60,0.12)');grd.addColorStop(1,'rgba(120,20,60,0)');
+      ctx.fillStyle=grd;ctx.fillRect(Math.min(sx,ex)-5,Math.min(sy,ey)-5,Math.abs(ex-sx)+10,Math.abs(ey-sy)+10);
+    }
+    for(let i=0;i<30;i++){
+      ctx.fillStyle=`rgba(${80+((i*17)%40)},${10+((i*7)%20)},${30+((i*11)%30)},0.2)`;
+      ctx.beginPath();ctx.ellipse(((i*151)%W),((i*113)%H),(3+((i*37)%9))*1.5,3+((i*37)%9),((i*23)%6)*0.5,0,Math.PI*2);ctx.fill();
+    }
+    ctx.strokeStyle='rgba(160,0,60,0.15)';ctx.lineWidth=1;
+    for(let i=0;i<8;i++){
+      ctx.beginPath();ctx.moveTo(((i*193)%W),((i*131)%H));
+      ctx.lineTo(((i*193)%W)+((i*41)%60)-30,((i*131)%H)+((i*29)%50)+10);ctx.stroke();
+    }
+    ctx.restore();
+
+  }else if(n==='Cœur du Sceau'){
+    ctx.save();
+    ctx.fillStyle='#080308';ctx.fillRect(0,0,W,H);
+    for(let i=0;i<16;i++){
+      const vx=((i*177)%W),vy=((i*133)%H);
+      const grd=ctx.createRadialGradient(vx,vy,0,vx,vy,40+((i*23)%30));
+      grd.addColorStop(0,'rgba(140,0,200,0.18)');grd.addColorStop(0.5,'rgba(80,0,120,0.08)');grd.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=grd;ctx.fillRect(vx-80,vy-80,160,160);
+    }
+    ctx.strokeStyle='rgba(120,0,180,0.25)';ctx.lineWidth=2;
+    for(let i=0;i<10;i++){
+      const fx=((i*211)%W),fy=((i*157)%H);
+      ctx.beginPath();ctx.moveTo(fx,fy);
+      const mx=fx+((i*53)%80)-40,my=fy+((i*37)%60)-10;
+      ctx.lineTo(mx,my);ctx.lineTo(mx+((i*29)%40)-20,my+((i*19)%40)+10);ctx.stroke();
+    }
+    ctx.strokeStyle='rgba(160,0,220,0.1)';ctx.lineWidth=1;
+    for(let i=0;i<5;i++){
+      ctx.beginPath();ctx.arc(((i*220)%(W-100))+50,((i*180)%(H-100))+50,20+i*8,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function draw(){
+  if(!game||!ctx)return;
+  const g=game,h=g.hero,r=g.room;
+  const theme=r.theme||THEMES[0];
+  const W=canvas.width,H=canvas.height;
+  const cx=g.camX||0,cy=g.camY||0;
+  const roomW=RW*TW,roomH=RH*TW;
+
+  // Transition fade
+  if(g.transitioning){
+    const alpha=g.transProgress<0.5?g.transProgress*2:(1-g.transProgress)*2;
+    ctx.fillStyle=`rgba(0,0,0,${alpha})`;ctx.fillRect(0,0,W,H);
+    return;
+  }
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle=theme.bg;ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(-cx,-cy);
+
+  drawRoomBackground(ctx, roomW, roomH, theme);
+  if(theme.fog){ctx.fillStyle=theme.fog;ctx.fillRect(0,0,roomW,roomH);}
+
+  // Opening indicators on walls (glow effect where passages are)
+  const conns=r.connections;
+  const drawOpening=(ox,oy,ow,oh,col)=>{
+    const grd=ctx.createLinearGradient(ox,oy,ox+ow,oy+oh);
+    grd.addColorStop(0,'transparent');grd.addColorStop(0.5,col+'55');grd.addColorStop(1,'transparent');
+    ctx.fillStyle=grd;ctx.fillRect(ox,oy,ow,oh);
+  };
+  if(r.cleared){
+    const oX=(Math.floor(RW/2)-1)*TW, oW=3*TW;
+    const oY=(Math.floor(RH/2)-1)*TW, oH=3*TW;
+    if(conns.left)  drawOpening(0,         oY,oW*0.6,oH,'#d4722a');
+    if(conns.right) drawOpening(roomW-oW*0.6, oY,oW*0.6,oH,'#d4722a');
+    if(conns.up)    drawOpening(oX,0,      oW,oH*0.6,'#d4722a');
+    if(conns.down)  drawOpening(oX,roomH-oH*0.6,oW,oH*0.6,'#d4722a');
+  }
+
+  // Murs : sprite PNG tuilé si disponible, sinon rendu canvas
+  for(const p of r.walls){
+    if(p.t==='w'||p.t==='g'){
+      drawTile('wall_stone', p.x, p.y, p.w, p.h, theme.wall);
+    }
+  }
+  for(const p of r.platforms){
+    drawTile('platform', p.x, p.y, p.w, p.h, theme.plat);
+    // Drop-through hint
+    if(h.onPlatform&&h.y+h.h>=p.y&&h.y+h.h<=p.y+8&&h.x+h.w>p.x&&h.x<p.x+p.w){
+      const alpha=0.4+0.3*Math.sin(Date.now()*0.006);
+      ctx.fillStyle=`rgba(201,162,39,${alpha})`;
+      const mx=p.x+p.w/2, my=p.y+p.h+4;
+      ctx.beginPath();ctx.moveTo(mx-6,my);ctx.lineTo(mx+6,my);ctx.lineTo(mx,my+9);ctx.closePath();ctx.fill();
+    }
+    // Bord supérieur (toujours affiché pour lisibilité)
+    ctx.fillStyle=theme.edge;ctx.fillRect(p.x,p.y,p.w,3);
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(p.x,p.y+p.h,p.w,4);
+  }
+
+  // Opening passages — exactement alignés sur les tuiles d'ouverture
+  // midTileX=10, ouverture x=[9*TW..12*TW], midTileY=6, ouverture y=[5*TW..8*TW]
+  const midTX=Math.floor(RW/2), midTY=Math.floor(RH/2);
+  const openX=(midTX-1)*TW, openW=3*TW;  // x=396, w=132
+  const openY=(midTY-1)*TW, openH=3*TW;  // y=220, h=132
+  const drawPassage=(px,py,pw,ph)=>{
+    ctx.fillStyle='#000509';
+    ctx.fillRect(px,py,pw,ph);
+    // Petit dégradé pour adoucir le bord intérieur
+    const fade=8;
+    const isH=pw<ph;
+    if(isH){ // passage vertical (gauche/droite)
+      const grd=ctx.createLinearGradient(px,0,px+pw,0);
+      if(px===0){grd.addColorStop(0,'rgba(0,0,0,0)');grd.addColorStop(1,'rgba(0,5,9,0.8)');}
+      else{grd.addColorStop(0,'rgba(0,5,9,0.8)');grd.addColorStop(1,'rgba(0,0,0,0)');}
+      ctx.fillStyle=grd;ctx.fillRect(px,py,pw,ph);
+    } else { // passage horizontal (haut/bas)
+      const grd=ctx.createLinearGradient(0,py,0,py+ph);
+      if(py===0){grd.addColorStop(0,'rgba(0,0,0,0)');grd.addColorStop(1,'rgba(0,5,9,0.8)');}
+      else{grd.addColorStop(0,'rgba(0,5,9,0.8)');grd.addColorStop(1,'rgba(0,0,0,0)');}
+      ctx.fillStyle=grd;ctx.fillRect(px,py,pw,ph);
+    }
+  };
+  if(conns.left)  drawPassage(0,         openY, TW,    openH);
+  if(conns.right) drawPassage(roomW-TW,  openY, TW,    openH);
+  if(conns.up)    drawPassage(openX,     0,     openW, TW);
+  if(conns.down)  drawPassage(openX,     roomH-TW, openW, TW);
+
+  // Flèches directionnelles sur les sorties ouvertes
+  if(r.cleared){
+    const t=Date.now()*0.004;
+    const pulse=0.5+0.5*Math.sin(t);
+    ctx.fillStyle=`rgba(212,114,42,${0.55+0.35*pulse})`;
+    const arrowSize=8;
+    const drawArrow=(ax,ay,dir)=>{
+      ctx.save();ctx.translate(ax,ay);
+      ctx.beginPath();
+      if(dir==='up'){ctx.moveTo(-arrowSize,arrowSize);ctx.lineTo(arrowSize,arrowSize);ctx.lineTo(0,-arrowSize);}
+      else if(dir==='down'){ctx.moveTo(-arrowSize,-arrowSize);ctx.lineTo(arrowSize,-arrowSize);ctx.lineTo(0,arrowSize);}
+      else if(dir==='left'){ctx.moveTo(arrowSize,-arrowSize);ctx.lineTo(arrowSize,arrowSize);ctx.lineTo(-arrowSize,0);}
+      else{ctx.moveTo(-arrowSize,-arrowSize);ctx.lineTo(-arrowSize,arrowSize);ctx.lineTo(arrowSize,0);}
+      ctx.closePath();ctx.fill();ctx.restore();
+    };
+    const passY=openY+openH/2, passX=openX+openW/2;
+    if(conns.up)    drawArrow(passX, TW*0.6,'up');
+    if(conns.down)  drawArrow(passX, roomH-TW*0.6,'down');
+    if(conns.left)  drawArrow(TW*0.6, passY,'left');
+    if(conns.right) drawArrow(roomW-TW*0.6, passY,'right');
+  }
+
+  // Gates — red iron bars blocking passages while enemies alive
+  const visibleGates = r.cleared ? [] : r.gates.filter(gate=>{
+    let ngx=g.gx,ngy=g.gy;
+    if(gate.dir==='left')ngx--;else if(gate.dir==='right')ngx++;
+    else if(gate.dir==='up')ngy--;else ngy++;
+    const dest=worldMap[roomKey(ngx,ngy)];
+    return !dest||!dest.cleared;
+  });
+  if(visibleGates.length>0){
+    ctx.save();
+    const pulse = 0.6 + 0.4*Math.sin(Date.now()*0.004);
+    for(const gate of visibleGates){
+      // Base dark metal
+      ctx.fillStyle='#1a0808';
+      ctx.fillRect(gate.x,gate.y,gate.w,gate.h);
+      // Iron bars
+      const isHoriz = gate.w > gate.h;
+      ctx.fillStyle=`rgba(180,40,40,${pulse})`;
+      if(!isHoriz){
+        // Vertical gate (left/right walls) — draw horizontal bars
+        for(let bar=0;bar<4;bar++){
+          const by=gate.y+bar*(gate.h/4)+2;
+          ctx.fillRect(gate.x+2,by,gate.w-4,gate.h/4-4);
+        }
+        // Vertical bar in center
+        ctx.fillStyle=`rgba(220,60,60,${pulse})`;
+        ctx.fillRect(gate.x+gate.w/2-2,gate.y,4,gate.h);
+      } else {
+        // Horizontal gate (top/bottom) — draw vertical bars
+        for(let bar=0;bar<4;bar++){
+          const bx=gate.x+bar*(gate.w/4)+2;
+          ctx.fillRect(bx,gate.y+2,gate.w/4-4,gate.h-4);
+        }
+        ctx.fillStyle=`rgba(220,60,60,${pulse})`;
+        ctx.fillRect(gate.x,gate.y+gate.h/2-2,gate.w,4);
+      }
+      // Glow rim
+      ctx.strokeStyle=`rgba(255,80,80,${pulse*0.8})`;
+      ctx.lineWidth=2;
+      ctx.strokeRect(gate.x+1,gate.y+1,gate.w-2,gate.h-2);
+    }
+    ctx.restore();
+  }
+
+  // Flèches directionnelles gérées dans drawPassage
+
+  // Gold chest
+  const gc=r.goldChest;
+  if(gc&&!gc.collected){
+    drawSprite('chest_gold', gc.x, gc.y, gc.w, gc.h, false, '#8a6d15');
+  }
+
+  // Heal chest
+  const hc2=r.healChest;
+  if(hc2&&!hc2.collected){
+    const pulse=0.7+0.3*Math.sin(Date.now()*0.005);
+    drawSprite('chest_heal', hc2.x, hc2.y, hc2.w, hc2.h, false, `rgba(180,20,20,${pulse})`);
+    ctx.fillStyle='#ff8888';ctx.font='bold 8px Cinzel,serif';ctx.textAlign='center';
+    ctx.fillText('+'+hc2.heal,hc2.x+hc2.w/2,hc2.y-4);ctx.textAlign='left';
+  }
+
+  // ─── SHOP ROOM ───
+  if(r.shop){
+    const sh=r.shop;
+    // Merchant NPC
+    ctx.fillStyle='#8a6d15';ctx.fillRect(sh.merchantX-16,sh.merchantY-40,32,40);
+    ctx.fillStyle='#d4722a';ctx.fillRect(sh.merchantX-12,sh.merchantY-38,24,28);
+    ctx.fillStyle='#e8c89a';ctx.fillRect(sh.merchantX-8,sh.merchantY-42,16,14);
+    ctx.fillStyle='#8a1515';ctx.fillRect(sh.merchantX-10,sh.merchantY-50,20,10); // hat
+    ctx.font='bold 9px Cinzel,serif';ctx.fillStyle='#ffe066';ctx.textAlign='center';
+    ctx.fillText('MARCHAND',sh.merchantX,sh.merchantY-55);
+    ctx.textAlign='left';
+    // Items
+    for(const item of sh.items){
+      if(item.bought)continue;
+      const ix=item.x,iy=item.y;
+      // Check if hero nearby
+      const cdx=Math.abs(h.cx-(ix+16))-(h.w/2+22);
+      const cdy=Math.abs(h.cy-(iy+16))-(h.h/2+22);
+      const near=cdx<10&&cdy<10;
+      const pulse=0.65+0.35*Math.sin(Date.now()*0.005);
+      if(item.type==='weapon'){
+        const rc='#d4722a';
+        const canUse=canUseWeapon(h.cls.id,item.weapon);
+        ctx.shadowBlur=near?18:8;ctx.shadowColor=canUse?rc:'#ff4444';
+        ctx.fillStyle='#1a0e04';ctx.fillRect(ix,iy,32,32);
+        ctx.fillStyle=canUse?rc+'33':'#ff222233';ctx.fillRect(ix+1,iy+1,30,30);
+        ctx.strokeStyle=canUse?rc:'#ff4444';ctx.lineWidth=near?2:1;ctx.strokeRect(ix+1,iy+1,30,30);
+        ctx.shadowBlur=0;
+        ctx.font='bold 14px Cinzel,serif';ctx.fillStyle=canUse?'#ffe066':'#ff8888';
+        ctx.textAlign='center';ctx.fillText(item.weapon.name.slice(0,3).toUpperCase(),ix+16,iy+21);ctx.textAlign='left';
+        ctx.font='bold 8px Cinzel,serif';ctx.fillStyle=canUse?'#ffcc00':'#ff4444';ctx.textAlign='center';
+        ctx.fillText(item.cost+' éc',ix+16,iy-5);
+        if(near){
+          ctx.fillStyle='#ffe066';ctx.font='bold 8px Cinzel,serif';ctx.textAlign='center';
+          ctx.fillText(item.weapon.name,ix+16,iy-28);
+          const ww=item.weapon;
+          ctx.fillStyle='#ffcc88';ctx.font='6px Cinzel,serif';
+          ctx.fillText('DMG x'+ww.dmgMult.toFixed(1)+(ww.proj?' | PROJ':' | PRT '+ww.range)+' | VIT '+ww.spd,ix+16,iy-18);
+          ctx.fillStyle='#ccddff';ctx.font='6px Cinzel,serif';
+          ctx.fillText(ww.desc||'',ix+16,iy-9);
+          ctx.fillStyle=canUse?'#aaffaa':'#ff8888';ctx.font='7px Cinzel,serif';
+          ctx.fillText(canUse?'[F] acheter':'Classe incompatible',ix+16,iy+38);
+        }
+        ctx.textAlign='left';
+      } else {
+        // Boost items
+        const col=item.type==='hpup'?'#ff4466':item.type==='mpup'?'#4488ff':item.type==='heal'?'#ff6688':'#d4722a';
+        const val=item.val;
+        ctx.shadowBlur=near?14:6;ctx.shadowColor=col;
+        ctx.fillStyle='#0a0808';ctx.fillRect(ix,iy,32,32);
+        ctx.fillStyle=col+'33';ctx.fillRect(ix+1,iy+1,30,30);
+        ctx.strokeStyle=col;ctx.lineWidth=near?2:1;ctx.strokeRect(ix+1,iy+1,30,30);
+        ctx.shadowBlur=0;
+        const icoLbl=item.type==='hpup'?'HP':item.type==='mpup'?'MP':'SOI';
+        ctx.font='bold 11px Cinzel,serif';ctx.fillStyle='#fff';ctx.textAlign='center';
+        ctx.fillText(icoLbl,ix+16,iy+21);ctx.textAlign='left';
+        ctx.font='bold 8px Cinzel,serif';ctx.fillStyle='#ffeecc';ctx.textAlign='center';
+        ctx.fillText(item.cost+' éc',ix+16,iy-5);
+        if(near){
+          const desc=item.type==='hpup'?'+'+val+' HP max':item.type==='mpup'?'+'+val+' MP max':'+'+val+' HP soin';
+          ctx.fillStyle='#ffeecc';ctx.font='8px Cinzel,serif';
+          ctx.fillText(desc,ix+16,iy-15);
+          ctx.fillStyle='#aaffaa';ctx.font='7px Cinzel,serif';
+          ctx.fillText('[F] acheter',ix+16,iy+38);
+        }
+        ctx.textAlign='left';
+      }
+    }
+    // Shop sign
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(RW*TW/2-80,TW*1.2,160,26);
+    ctx.strokeStyle='#d4722a';ctx.lineWidth=1;ctx.strokeRect(RW*TW/2-80,TW*1.2,160,26);
+    ctx.font='bold 10px Cinzel,serif';ctx.fillStyle='#d4722a';ctx.textAlign='center';
+    ctx.fillText('⚰ MARCHAND DES PROFONDEURS ⚰',RW*TW/2,TW*1.2+17);ctx.textAlign='left';
+  }
+
+  // Weapon drops — color-coded by rarity
+
+
+  // Ennemis
+  for(const e of r.enemies){
+    if(e.dead)continue;
+    const invAlpha=e.invincible>0?Math.sin(e.invincible*1.2)*0.5+0.5:1;
+    ctx.globalAlpha=invAlpha;
+    const [bc,sc]=e.def.col;
+    const eFlip = e.facing<0; // sprite orienté droite par défaut
+
+    const sprKey = e.isBoss ? e.type : 'enemy_'+e.type;
+    drawSprite(sprKey, e.x, e.y, e.w, e.h, eFlip, bc);
+
+    ctx.shadowBlur=0; // reset après banshee/spectre éventuel
+
+    // HP bar (toujours affichée par-dessus le sprite)
+    ctx.globalAlpha=invAlpha;
+    ctx.fillStyle='#1a0000';ctx.fillRect(e.x,e.y-9,e.w,5);
+    ctx.fillStyle=`hsl(${e.hp/e.maxHp*120},80%,45%)`;ctx.fillRect(e.x,e.y-9,e.w*(e.hp/e.maxHp),5);
+    if(e.bleed>0){ctx.fillStyle='#ff224488';ctx.fillRect(e.x+e.w-5,e.y,5,e.h);}
+    ctx.globalAlpha=1;
+  }
+
+  // Projectiles
+  for(const p of g.projectiles){
+    ctx.fillStyle=p.color;ctx.shadowBlur=9;ctx.shadowColor=p.color;
+    ctx.beginPath();ctx.arc(p.x+p.w/2,p.y+p.h/2,p.w/2,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+
+  // ---- HERO ----
+  const heroAlpha=h.invincible>0?Math.sin(h.invincible*1.2)*0.5+0.5:1;
+  ctx.globalAlpha=heroAlpha;
+  const HCO={'chevalier':['#d4722a','#8a6d15'],'mage':['#4a90d9','#1a4070'],'voleur':['#9c27b0','#5c1070'],'barbare':['#cc1111','#880000'],'archer':['#4caf50','#2a6030'],'paladin':['#f0c040','#a07d10']};
+  const hc=HCO[h.cls.id]||['#d4722a','#8a6d15'];
+  const wp=h.weapon;
+  const heroFlip = h.facing<0;
+
+  // Sprite héros (le sprite doit être orienté vers la droite)
+  drawSprite('hero_'+h.cls.id, h.x, h.y, h.w, h.h, heroFlip, hc[0]);
+
+  // Arme — sprite PNG ou rectangle coloré
+  ctx.save();
+  if(heroFlip){ctx.translate(h.x+h.w*.1,h.h*.5+h.y);ctx.scale(-1,1);}
+  else{ctx.translate(h.x+h.w*.9,h.h*.5+h.y);}
+  const wpImg=SPRITES['weapon_'+wp.id];
+  if(wpImg&&wpImg.complete&&wpImg.naturalWidth){ ctx.drawImage(wpImg,-18,-18,36,36); }
+  else { ctx.fillStyle=wp.color; ctx.fillRect(-4,-14,8,28); }
+  ctx.restore();
+
+  if(h.dodging>0){ctx.globalAlpha*=0.35;ctx.fillStyle='#9c27b0';ctx.fillRect(h.x-4,h.y,h.w+8,h.h);}
+  ctx.globalAlpha=1;
+
+  if(h.furious>0){
+    ctx.strokeStyle='#cc1111';ctx.lineWidth=2;ctx.shadowBlur=14;ctx.shadowColor='#cc1111';
+    ctx.strokeRect(h.x-3,h.y-3,h.w+6,h.h+6);ctx.shadowBlur=0;
+  }
+  if(h.shielded>0){
+    h.shielded--;
+    if(h.shielded===0) h.shieldReflect=false;
+    const sp=0.5+0.5*Math.sin(Date.now()*0.01);
+    ctx.strokeStyle=`rgba(240,192,64,${sp})`;ctx.lineWidth=3;ctx.shadowBlur=18;ctx.shadowColor='#f0c040';
+    ctx.beginPath();ctx.arc(h.cx,h.cy,h.w*0.9,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;
+  }
+
+  // Float texts
+  for(const f of g.floats){
+    ctx.globalAlpha=f.life/65;ctx.fillStyle=f.color;
+    ctx.font='bold 12px Cinzel,serif';ctx.fillText(f.text,f.x-cx,f.y-cy);ctx.globalAlpha=1;
+  }
+  ctx.restore(); // camera
+
+  // Barre de boss (hors caméra)
+  if(r.isBoss&&!r.cleared&&r.enemies[0]){
+    const boss=r.enemies[0], bpct=Math.max(0,boss.hp/boss.maxHp);
+    const bw=Math.min(W*0.88,440), bh=22, bx=(W-bw)/2, by=H-48;
+    // Cadre
+    ctx.fillStyle='#0a000f'; ctx.fillRect(bx-3,by-20,bw+6,bh+24);
+    ctx.fillStyle='#1a001a'; ctx.fillRect(bx,by,bw,bh);
+    // Barre
+    const col1=boss.def?boss.def.col[0]:'#8800cc';
+    const grad=ctx.createLinearGradient(bx,0,bx+bw*bpct,0);
+    grad.addColorStop(0,col1); grad.addColorStop(1,'#ff0080');
+    ctx.fillStyle=grad; ctx.fillRect(bx,by,bw*bpct,bh);
+    // Marqueurs de phase 66% / 33%
+    ctx.setLineDash([3,3]);
+    [0.66,0.33].forEach((t,i)=>{
+      ctx.strokeStyle=i===0?'#8888ff':'#ff8888'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(bx+bw*t,by); ctx.lineTo(bx+bw*t,by+bh); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    ctx.strokeStyle=col1; ctx.lineWidth=1.5; ctx.strokeRect(bx,by,bw,bh);
+    // Nom du boss
+    ctx.font='bold 11px Cinzel,serif'; ctx.textAlign='center';
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillText(boss.name||boss.def.name,W/2+1,by-6);
+    ctx.fillStyle='#ffffff'; ctx.fillText(boss.name||boss.def.name,W/2,by-6);
+    // Phase
+    const phLbl=bpct>0.66?'PHASE I':bpct>0.33?'⚡ PHASE II':'☠ PHASE III';
+    ctx.font='bold 9px Cinzel,serif';
+    ctx.fillStyle=bpct>0.66?'#aaaaff':bpct>0.33?'#ffcc44':'#ff4444';
+    ctx.fillText(phLbl,W/2,by+bh+13);
+    ctx.textAlign='left';
+  }
+
+  // HUD overlays
+
+
+  // Weapon cooldown bar
+  if(h.attackCooldown>0){
+    const bw=60,bx=W-70,by=H-170;
+    ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(bx,by,bw,10);
+    ctx.fillStyle=h.weapon.color;ctx.fillRect(bx,by,bw*(1-h.attackCooldown/h.weapon.spd),10);
+  }
+
+  // Room not cleared warning
+  if(!r.cleared){
+    const alive=r.enemies.filter(e=>!e.dead).length;
+    ctx.fillStyle='rgba(180,30,30,0.7)';ctx.font='bold 10px Cinzel,serif';ctx.textAlign='center';
+    ctx.fillText(`${alive} ennemi${alive>1?'s':''} restant${alive>1?'s':''}`,W/2,52);ctx.textAlign='left';
+  }
+
+  // Draw minimap
+  drawMinimap();
+}
+
+function drawMinimap(){
+  if(!mapCtx||!game)return;
+  const mc=mapCtx, g=game;
+  mc.clearRect(0,0,110,90);
+  mc.fillStyle='rgba(0,0,0,0.85)';mc.fillRect(0,0,110,90);
+
+  // Draw visited rooms
+  const CELL=12,OFFX=55,OFFY=45;
+  const visited=Object.entries(worldMap);
+
+  visited.forEach(([k,room])=>{
+    const[gx,gy]=k.split(',').map(Number);
+    const rx=OFFX+(gx-g.gx)*CELL;const ry=OFFY+(gy-g.gy)*CELL;
+    if(rx<-CELL||rx>110+CELL||ry<-CELL||ry>90+CELL)return;
+    const isCurrent=(gx===g.gx&&gy===g.gy);
+    mc.fillStyle=isCurrent?'#d4722a':room.shop?'#8a6d15':room.cleared?'#3a5030':'#2a2a3a';
+    mc.fillRect(rx,ry,CELL-2,CELL-2);
+    if(isCurrent){mc.strokeStyle='#fff';mc.lineWidth=1;mc.strokeRect(rx,ry,CELL-2,CELL-2);}
+    // Connection lines
+    if(room.connections.right){ mc.fillStyle='#444';mc.fillRect(rx+CELL-2,ry+3,3,CELL-8); }
+    if(room.connections.down){  mc.fillStyle='#444';mc.fillRect(rx+3,ry+CELL-2,CELL-8,3); }
+  });
+
+  // Legend
+  mc.fillStyle='rgba(201,162,39,0.7)';mc.font='7px Cinzel,serif';mc.fillText('CARTE',4,8);
+}
+
+function gameLoop(){
+  if(!game||!canvas)return;
+  try{
+    update();
+    if(game)draw();
+  }catch(err){
+    console.error('GAME ERROR:',err);
+    if(ctx){
+      ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#ff4444';ctx.font='bold 12px monospace';ctx.textAlign='center';
+      ctx.fillText('ERR: '+err.message,canvas.width/2,canvas.height/2);
+      const line=err.stack?err.stack.split('\n')[1]:'';
+      ctx.fillText(line.slice(0,60),canvas.width/2,canvas.height/2+20);
+      ctx.textAlign='left';
+    }
+    cancelAnimationFrame(animId);
+    return;
+  }
+  animId=requestAnimationFrame(gameLoop);
+}
+
+function formatTime(ms){
+  const s=Math.floor(ms/1000), m=Math.floor(s/60);
+  return m>0?(m+'m '+(s%60)+'s'):(s+'s');
+}
+
+function showVictory(){
+  cancelAnimationFrame(animId);
+  const h=game.hero, elapsed=Date.now()-game.runStartTime;
+  state.gold+=game.runGold;
+  document.getElementById('vs-name').textContent=h.name;
+  document.getElementById('vs-class').textContent=h.cls.name;
+  document.getElementById('vs-time').textContent=formatTime(elapsed);
+  document.getElementById('vs-rooms').textContent=game.roomsVisited;
+  document.getElementById('vs-kills').textContent=game.kills;
+  document.getElementById('vs-gold').textContent=game.runGold;
+  document.getElementById('vs-bosses').textContent=state.defeatedBosses.size;
+  game=null; setScreen('victory-screen');
+}
+
+function die(){
+  cancelAnimationFrame(animId);
+  const h=game.hero,earned=game.runGold;
+  state.gold+=earned;
+  const elapsed=Date.now()-game.runStartTime;
+  const lores=[
+    `${h.name.split(' ')[0]} traversa ${game.roomsVisited} salles avant d'être consumé.`,
+    `${h.name.split(' ')[0]}, ${h.cls.name}, laissa son ${game.bestWeapon||h.weapon.name} dans les briques.`,
+    `Les briques du donjon ont absorbé l'âme de ${h.name.split(' ')[0]}.`,
+    `${h.name.split(' ')[0]} abattit ${game.kills} servants. Azrathys frémit dans son sceau.`,
+  ];
+  
+  document.getElementById('ds-name').textContent=h.name;
+  document.getElementById('ds-class').textContent=h.cls.name;
+  document.getElementById('ds-rooms').textContent=game.roomsVisited;
+  const dst=document.getElementById('ds-time'); if(dst) dst.textContent=formatTime(elapsed);
+  document.getElementById('ds-kills').textContent=game.kills;
+  document.getElementById('ds-weapon').textContent=(game.bestWeapon||h.weapon.name);
+  document.getElementById('ds-gold').textContent=earned;
+  document.getElementById('death-lore-text').textContent=rnd(lores);
+  game=null;setScreen('death-screen');
+}
+
+function checkOrientation(){
+  const rot=document.getElementById('rotate-screen');
+  const isLandscape=window.innerWidth>window.innerHeight;
+  if(rot) rot.classList.toggle('show', isLandscape);
+}
+window.addEventListener('resize',()=>{
+  checkOrientation();
+  if(canvas&&document.getElementById('game-screen').classList.contains('active')){
+    canvas.width=document.getElementById('canvas-wrap').clientWidth;
+    canvas.height=document.getElementById('canvas-wrap').clientHeight;
+  }
+});
+window.addEventListener('orientationchange',()=>{setTimeout(checkOrientation,200);});
+checkOrientation();
+document.getElementById('game-screen').addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// Attacher tous les boutons de navigation après chargement du DOM
+document.addEventListener('DOMContentLoaded', function(){
+  loadSprites(()=>{});
+  function safeClick(id, fn){
+    const el = document.getElementById(id);
+    if(!el){ console.warn('Element not found:', id); return; }
+    el.addEventListener('click', function(e){
+      try{ fn(e); }
+      catch(err){ console.error('Button error ['+id+']:', err.message, err.stack); }
+    });
+  }
+  safeClick('btn-start-title', function(){ showCastle(); });
+  safeClick('btn-enter-castle', function(){ startRun(); });
+  safeClick('btn-start-death',  function(){ showCastle(); });
+  safeClick('btn-victory-menu', function(){ showCastle(); });
+  safeClick('btn-quit-game', function(){
+    if(!game) return;
+    cancelAnimationFrame(animId);
+    state.gold+=game.runGold;
+    game=null; showCastle();
+  });
+  safeClick('tab-btn-upgrades', function(e){ switchTab('upgrades', e.currentTarget); });
+  safeClick('tab-btn-heirs',    function(e){ switchTab('heirs',    e.currentTarget); });
+});
+</script>
+</body>
+</html>
