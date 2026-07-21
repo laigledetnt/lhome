@@ -1,0 +1,2663 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Survie 2D</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+:root{
+  --wood:#6b4423;
+  --wood-dark:#3e2712;
+  --wood-light:#8a5a2f;
+  --panel-bg:rgba(20,14,8,0.9);
+  --text:#f1e6d0;
+}
+*{box-sizing:border-box;}
+html,body{
+  margin:0; padding:0; overflow:hidden; width:100%; height:100%;
+  background:#000; font-family:'VT323', monospace; color:var(--text);
+  cursor:default; user-select:none;
+}
+#gameCanvas{display:block; image-rendering:pixelated; background:#1a1a1a;}
+
+#hud{ position:fixed; inset:0; pointer-events:none; }
+#topbar{
+  position:absolute; top:12px; left:50%; transform:translateX(-50%);
+  display:flex; gap:18px; align-items:center;
+  background:var(--panel-bg); border:3px solid var(--wood-dark);
+  border-radius:6px; padding:8px 20px; box-shadow:0 4px 0 var(--wood-dark);
+}
+.bar-wrap{display:flex; align-items:center; gap:6px;}
+.bar{width:130px; height:14px; background:#2b2320; border:2px solid var(--wood-dark); border-radius:3px; overflow:hidden;}
+.bar-fill{height:100%; transition:width .2s;}
+.bar-fill.hp{background:linear-gradient(180deg,#e74c3c,#992d22);}
+.bar-fill.hunger{background:linear-gradient(180deg,#f1c40f,#b7950b);}
+.icon{font-size:18px;}
+#dayIndicator{display:flex; align-items:center; gap:6px; font-size:14px;}
+#dayIcon{font-size:20px;}
+
+#hints{
+  position:absolute; top:12px; right:14px; background:var(--panel-bg);
+  border:3px solid var(--wood-dark); border-radius:6px; padding:10px 14px; font-size:14px; line-height:1.5;
+  max-width:230px;
+}
+#hints b{color:#f1c40f;}
+
+#hotbar{
+  position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+  display:flex; gap:6px; pointer-events:auto;
+}
+.slot{
+  width:54px; height:54px; background:var(--panel-bg); border:3px solid var(--wood-dark);
+  border-radius:6px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; position:relative; box-shadow:0 3px 0 var(--wood-dark); cursor:pointer;
+}
+.slot:hover{ border-color:var(--wood-light); }
+.slot.active{ border-color:#f1c40f; box-shadow:0 0 10px #f1c40f, 0 3px 0 var(--wood-dark); transform:translateY(-3px); }
+.slot .count{position:absolute; bottom:1px; right:4px; font-size:13px; font-family:'VT323'; text-shadow:1px 1px 0 #000;}
+.slot .num{position:absolute; top:1px; left:4px; font-size:9px; font-family:'Press Start 2P'; opacity:.75; color:#f1c40f;}
+.slot .badge{position:absolute; top:1px; right:3px; font-size:11px;}
+
+#invHint{
+  position:absolute; bottom:76px; left:50%; transform:translateX(-50%);
+  font-size:14px; opacity:.75; background:rgba(0,0,0,.4); padding:2px 10px; border-radius:4px;
+}
+
+#invPanel{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:var(--panel-bg); border:4px solid var(--wood-dark); border-radius:10px;
+  padding:18px 20px; pointer-events:auto; display:none; box-shadow:0 8px 24px rgba(0,0,0,.6);
+  flex-direction:column; gap:10px;
+}
+#invPanel h2{margin:0; font-size:16px; font-family:'Press Start 2P'; color:#f1c40f;}
+#invPanel .closeBtn{ position:absolute; top:8px; right:10px; background:none; border:none; color:var(--text); font-size:20px; cursor:pointer; }
+#invGrid{ display:grid; grid-template-columns:repeat(9, 54px); gap:6px; }
+#invGrid .islot{
+  width:54px; height:54px; background:rgba(255,255,255,0.06); border:3px solid var(--wood-dark);
+  border-radius:6px; display:flex; align-items:center; justify-content:center; position:relative; cursor:pointer;
+}
+#invGrid .islot:hover{ border-color:var(--wood-light); }
+#invGrid .islot.hotbarRow{ border-color:#7a5f38; }
+#invGrid .islot .count{position:absolute; bottom:1px; right:4px; font-size:13px; text-shadow:1px 1px 0 #000;}
+#invGrid .islot .badge{position:absolute; top:1px; right:3px; font-size:11px;}
+#invHelp{ font-size:14px; opacity:.8; max-width:486px; }
+
+#cursorItem{
+  position:fixed; display:none; align-items:center; justify-content:center; gap:2px;
+  width:44px; height:44px; pointer-events:none; z-index:200;
+}
+#cursorItem .count{position:absolute; bottom:0; right:0; font-size:13px; text-shadow:1px 1px 0 #000;}
+
+#craftPanel{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:var(--panel-bg); border:4px solid var(--wood-dark); border-radius:10px;
+  padding:18px 22px; width:360px; max-height:78vh; overflow-y:auto; pointer-events:auto; display:none;
+  box-shadow:0 8px 24px rgba(0,0,0,.6);
+}
+#craftPanel h2{margin:0 0 10px; font-size:16px; font-family:'Press Start 2P'; color:#f1c40f;}
+.recipe{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:rgba(255,255,255,0.05); border:2px solid var(--wood-dark); border-radius:6px;
+  padding:8px 10px; margin-bottom:8px; font-size:15px;
+}
+.recipe .name{display:flex; gap:8px; align-items:center; font-size:15px;}
+.recipe .cost{opacity:.85; font-size:13px;}
+.recipe button{
+  background:var(--wood); color:var(--text); border:2px solid var(--wood-dark);
+  border-radius:5px; padding:5px 10px; font-family:'VT323'; font-size:15px; cursor:pointer;
+}
+.recipe button:disabled{opacity:.35; cursor:not-allowed;}
+.recipe button:not(:disabled):hover{background:var(--wood-light);}
+#closeCraft{
+  position:absolute; top:8px; right:10px; background:none; border:none; color:var(--text);
+  font-size:20px; cursor:pointer;
+}
+
+#msgLog{
+  position:absolute; bottom:100px; left:50%; transform:translateX(-50%);
+  display:flex; flex-direction:column-reverse; gap:4px; align-items:center;
+  font-size:16px; pointer-events:none;
+}
+#msgLog div{ background:rgba(0,0,0,0.55); padding:3px 10px; border-radius:4px; opacity:0; animation:fadein .3s forwards; }
+@keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+#bossBarWrap{
+  position:absolute; top:64px; left:50%; transform:translateX(-50%);
+  width:420px; max-width:80vw; display:flex; flex-direction:column; align-items:center; gap:4px;
+}
+#bossName{ font-family:'Press Start 2P'; font-size:13px; color:#f1c40f; text-shadow:0 2px 0 #000; }
+#bossBar{ width:100%; height:16px; background:#2b2320; border:2px solid var(--wood-dark); border-radius:3px; overflow:hidden; }
+#bossBarFill{ height:100%; width:100%; background:linear-gradient(180deg,#7ecbff,#2a5a8a); transition:width .2s; }
+
+#deathScreen{
+  position:fixed; inset:0; background:rgba(10,0,0,0.85); display:none;
+  align-items:center; justify-content:center; flex-direction:column; gap:16px; z-index:50;
+}
+#deathScreen h1{color:#e74c3c; font-family:'Press Start 2P'; font-size:26px; text-shadow:0 3px 0 #000;}
+#deathScreen p{font-size:18px; color:#e8d9a0;}
+#deathScreen button{
+  background:var(--wood); color:var(--text); border:3px solid var(--wood-dark); border-radius:8px;
+  padding:12px 24px; font-family:'Press Start 2P'; font-size:14px; cursor:pointer; box-shadow:0 4px 0 var(--wood-dark);
+}
+#deathScreen button:hover{background:var(--wood-light);}
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="hud">
+  <div id="topbar">
+    <div class="bar-wrap"><span class="icon">❤️</span><div class="bar"><div id="hpFill" class="bar-fill hp" style="width:100%"></div></div></div>
+    <div class="bar-wrap"><span class="icon">🍗</span><div class="bar"><div id="hungerFill" class="bar-fill hunger" style="width:100%"></div></div></div>
+    <div id="dayIndicator"><span id="dayIcon">☀️</span><span id="dayLabel">Jour 1</span></div>
+  </div>
+
+  <div id="hints">
+    <div><b>ZQSD/Flèches</b> — se déplacer</div>
+    <div><b>E</b> — attaquer / activer un levier</div>
+    <div><b>Maj+E</b> — récolter (arbres, pierre, baies) / manger / casser un mécanisme</div>
+    <div><b>B</b> — poser l'objet sélectionné (replantez vos pousses 🌱 !)</div>
+    <div><b>A</b> — jeter l'objet sélectionné</div>
+    <div><b>1-9</b> — choisir un emplacement</div>
+    <div><b>I</b> — inventaire complet</div>
+    <div><b>C</b> — artisanat</div>
+  </div>
+
+  <div id="hotbar"></div>
+  <div id="invHint">I : inventaire</div>
+
+  <div id="bossBarWrap" style="display:none;">
+    <div id="bossName">BOSS</div>
+    <div id="bossBar"><div id="bossBarFill"></div></div>
+  </div>
+
+  <div id="msgLog"></div>
+
+  <div id="craftPanel">
+    <button id="closeCraft">✕</button>
+    <h2>ARTISANAT</h2>
+    <div id="recipeList"></div>
+  </div>
+
+  <div id="invPanel">
+    <button class="closeBtn" id="closeInv">✕</button>
+    <h2>INVENTAIRE</h2>
+    <div id="invGrid"></div>
+    <div id="invHelp">Cliquez pour prendre un objet, cliquez ailleurs pour le déposer ou l'échanger. La rangée du haut est votre barre d'accès rapide.</div>
+  </div>
+</div>
+
+<div id="cursorItem"></div>
+
+<div id="deathScreen">
+  <h1>VOUS ÊTES MORT</h1>
+  <p id="deathReason"></p>
+  <button id="restartBtn">RECOMMENCER</button>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   CONFIG
+========================================================= */
+const TILE = 32;
+const OVERWORLD_W = 574, OVERWORLD_H = 574; // zone explorable normale (carte visible)
+const BARRIER_ROWS = 60;                    // bande d'eau infranchissable, coupe tout accès à pied
+const BACKSTAGE_Y = OVERWORLD_H + BARRIER_ROWS; // début de la zone cachée (donjon)
+const BACKSTAGE_H = 20;
+const WORLD_W = OVERWORLD_W;
+const WORLD_H = BACKSTAGE_Y + BACKSTAGE_H;  // grille totale (inclut la zone cachée, jamais rendue accessible à pied)
+const DAY_LENGTH = 300;
+const NIGHT_START = 0.5;
+const NIGHT_END = 0.92;
+const BORDER_THICKNESS = 10; // épaisseur de l'anneau d'eau tout autour de la carte visible
+
+// Rayon de vision du joueur : au-delà de ce nombre de blocs, tout devient noir opaque.
+const VISION_RADIUS_TILES = 24;
+const VISION_RADIUS_PX = VISION_RADIUS_TILES * TILE;
+const VISION_FADE_TILES = 4; // largeur du dégradé juste avant la limite, pour un bord moins brutal
+
+// Distance (en blocs) à laquelle les animaux apparaissent / disparaissent autour du joueur.
+const ANIMAL_SPAWN_DIST_TILES = 30;
+const ANIMAL_SPAWN_DIST_PX = ANIMAL_SPAWN_DIST_TILES * TILE;
+const ANIMAL_DESPAWN_DIST_TILES = 50;
+const ANIMAL_DESPAWN_DIST_PX = ANIMAL_DESPAWN_DIST_TILES * TILE;
+
+const TILE_TYPES = { GRASS:0, WATER:1, SAND:2, ROCKFLOOR:3 };
+
+/* =========================================================
+   UTILS
+========================================================= */
+function rand(a,b){ return a + Math.random()*(b-a); }
+function randi(a,b){ return Math.floor(rand(a,b+1)); }
+function dist(x1,y1,x2,y2){ return Math.hypot(x1-x2,y1-y2); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+/* =========================================================
+   OBJETS DE L'INVENTAIRE
+========================================================= */
+const ITEM_DEFS = {
+  wood:        {icon:'🪵', name:'Bois',               max:64, cat:'resource'},
+  stone:       {icon:'🪨', name:'Pierre',              max:64, cat:'resource'},
+  berry:       {icon:'🍓', name:'Baies',               max:64, cat:'food', hunger:20, heal:2},
+  sapling:     {icon:'🌱', name:"Pousse d'arbre",       max:64, cat:'place'},
+  axe_wood:    {icon:'🪓', name:'Hache en bois',       max:1,  cat:'tool', kind:'axe',   tier:1, badge:'🪵'},
+  axe_stone:   {icon:'🪓', name:'Hache en pierre',     max:1,  cat:'tool', kind:'axe',   tier:2, badge:'🪨'},
+  pick_wood:   {icon:'⛏️', name:'Pioche en bois',      max:1,  cat:'tool', kind:'pick',  tier:1, badge:'🪵'},
+  pick_stone:  {icon:'⛏️', name:'Pioche en pierre',    max:1,  cat:'tool', kind:'pick',  tier:2, badge:'🪨'},
+  sword_wood:  {icon:'🗡️', name:'Épée en bois',        max:1,  cat:'tool', kind:'sword', tier:1, badge:'🪵'},
+  sword_stone: {icon:'🗡️', name:'Épée en pierre',      max:1,  cat:'tool', kind:'sword', tier:2, badge:'🪨'},
+  wall:        {icon:'🧱', name:'Mur',                 max:64, cat:'place'},
+  campfire:    {icon:'🔥', name:'Feu de camp',         max:64, cat:'place'},
+  lever:       {icon:'🔘', name:'Levier',              max:64, cat:'place'},
+  wire:        {icon:'➰', name:'Fil conducteur',      max:64, cat:'place_wire'},
+  timer:       {icon:'🔁', name:'Minuterie directionnelle', max:64, cat:'place_wire'},
+  piston:      {icon:'🔲', name:'Piston',              max:64, cat:'place'},
+  plate:       {icon:'⬜', name:'Plaque de pression',  max:64, cat:'place'},
+  door:        {icon:'🚪', name:'Porte',               max:64, cat:'place'},
+  gem:         {icon:'💎', name:'Gemme mystérieuse',    max:64, cat:'resource'},
+  hide:        {icon:'🟤', name:'Peau',                max:64, cat:'resource'},
+  feather:     {icon:'🪶', name:'Plume',               max:64, cat:'resource'},
+  fish:        {icon:'🐟', name:'Poisson',             max:64, cat:'food', hunger:24, heal:4},
+};
+const N_SLOTS = 27;
+
+/* =========================================================
+   CANVAS
+========================================================= */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+/* =========================================================
+   STATE
+========================================================= */
+let tiles, objects, wires, biome, zombies, animals, drops, player, camera, particles, keys, gameOver, started;
+let dayTime, dayCount, craftOpen, invOpen, selectedSlot, heldItem;
+let projectiles, saplings, ent, forestBalance;
+let dungeon2, inDungeon2;
+const FOREST_BALANCE_MAX = 10;
+
+function freshState(){
+  tiles = new Uint8Array(WORLD_W*WORLD_H);
+  objects = new Array(WORLD_W*WORLD_H).fill(null);
+  wires = new Array(WORLD_W*WORLD_H).fill(null);
+  zombies = [];
+  animals = [];
+  drops = [];
+  particles = [];
+  projectiles = [];
+  saplings = [];
+  ent = null;
+  forestBalance = FOREST_BALANCE_MAX;
+  dungeon2 = null;
+  inDungeon2 = false;
+  keys = {};
+  gameOver = false;
+  craftOpen = false;
+  invOpen = false;
+  selectedSlot = 0;
+  heldItem = null;
+  dayTime = 0.15;
+  dayCount = 1;
+
+  player = {
+    x:(WORLD_W*TILE)/2, y:(OVERWORLD_H*TILE)/2,
+    w:20, h:20, speed:150,
+    facing:'down',
+    hp:100, maxHp:100,
+    hunger:300, maxHunger:300,
+    slots: new Array(N_SLOTS).fill(null),
+    hurtFlash:0, staggerTimer:0
+  };
+  camera = {x:player.x, y:player.y};
+}
+
+function idx(tx,ty){ return ty*WORLD_W+tx; }
+function inBounds(tx,ty){ return tx>=0 && ty>=0 && tx<WORLD_W && ty<WORLD_H; }
+
+/* =========================================================
+   INVENTAIRE : fonctions génériques
+========================================================= */
+function addItem(id, count){
+  const def = ITEM_DEFS[id];
+  const max = def.max;
+  for(let i=0;i<player.slots.length && count>0;i++){
+    const s = player.slots[i];
+    if(s && s.id===id && s.count<max){
+      const add = Math.min(max-s.count, count);
+      s.count += add; count -= add;
+    }
+  }
+  for(let i=0;i<player.slots.length && count>0;i++){
+    if(!player.slots[i]){
+      const add = Math.min(max,count);
+      player.slots[i] = {id, count:add};
+      count -= add;
+    }
+  }
+  return count;
+}
+function removeItem(id, count){
+  let remaining = count;
+  for(let i=0;i<player.slots.length && remaining>0;i++){
+    const s = player.slots[i];
+    if(s && s.id===id){
+      const take = Math.min(s.count, remaining);
+      s.count -= take; remaining -= take;
+      if(s.count<=0) player.slots[i] = null;
+    }
+  }
+  return remaining===0;
+}
+function countItem(id){
+  let n=0;
+  for(const s of player.slots) if(s && s.id===id) n += s.count;
+  return n;
+}
+function hasTool(kind){
+  let best = 0;
+  for(const s of player.slots){
+    if(s){
+      const def = ITEM_DEFS[s.id];
+      if(def && def.cat==='tool' && def.kind===kind) best = Math.max(best, def.tier);
+    }
+  }
+  return best;
+}
+
+/* =========================================================
+   OBJETS AU SOL (drops)
+========================================================= */
+function spawnDrop(x,y,id,count){
+  if(count<=0) return;
+  drops.push({x:x+rand(-8,8), y:y+rand(-8,8), id, count});
+}
+function updateDrops(dt){
+  for(let i=drops.length-1;i>=0;i--){
+    const d = drops[i];
+    if(dist(d.x,d.y,player.x,player.y) < 22){
+      const leftover = addItem(d.id, d.count);
+      if(leftover<=0){ drops.splice(i,1); updateHUD(); }
+      else d.count = leftover;
+    }
+  }
+}
+function drawDrops(camX,camY){
+  for(const d of drops){
+    const sx = d.x-camX, sy = d.y-camY;
+    const bob = Math.sin(performance.now()/300 + d.x)*3;
+    ctx.font = '20px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(ITEM_DEFS[d.id].icon, sx, sy+bob);
+    if(d.count>1){
+      ctx.font = "12px 'VT323'";
+      ctx.fillStyle='#fff';
+      ctx.fillText(d.count, sx+10, sy+10+bob);
+    }
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  }
+}
+
+/* =========================================================
+   GENERATION DU MONDE
+========================================================= */
+const BIOME_LIST = ['plains','forest','desert','snow','swamp','jungle','mountain'];
+
+function generateBiomes(){
+  biome = new Array(WORLD_W*WORLD_H).fill('plains');
+  const seeds = [];
+  ['forest','desert','snow','swamp','jungle','mountain'].forEach(t=>{
+    seeds.push({x:randi(4,WORLD_W-4), y:randi(4,OVERWORLD_H-4), type:t});
+  });
+  const extra = randi(5,8);
+  for(let i=0;i<extra;i++){
+    seeds.push({x:randi(0,WORLD_W-1), y:randi(0,OVERWORLD_H-1), type:BIOME_LIST[randi(0,BIOME_LIST.length-1)]});
+  }
+  seeds.push({x:randi(0,WORLD_W-1), y:randi(0,OVERWORLD_H-1), type:'plains'});
+
+  for(let ty=0; ty<WORLD_H; ty++){
+    for(let tx=0; tx<WORLD_W; tx++){
+      let best=null, bestD=Infinity;
+      for(const s of seeds){
+        const d = dist(tx,ty,s.x,s.y);
+        if(d<bestD){ bestD=d; best=s; }
+      }
+      biome[idx(tx,ty)] = best.type;
+    }
+  }
+}
+
+function generateWorld(){
+  generateBiomes();
+  for(let i=0;i<tiles.length;i++) tiles[i] = TILE_TYPES.GRASS;
+
+  const lakeCount = randi(3,5);
+  for(let l=0;l<lakeCount;l++){
+    const cx = randi(6,WORLD_W-6), cy = randi(6,OVERWORLD_H-6), r = randi(3,7);
+    for(let ty=cy-r-2; ty<=cy+r+2; ty++){
+      for(let tx=cx-r-2; tx<=cx+r+2; tx++){
+        if(!inBounds(tx,ty)) continue;
+        const d = dist(tx,ty,cx,cy) + rand(-1.3,1.3);
+        if(d < r) tiles[idx(tx,ty)] = TILE_TYPES.WATER;
+        else if(d < r+1.6) tiles[idx(tx,ty)] = TILE_TYPES.SAND;
+      }
+    }
+  }
+
+  // Bassins supplémentaires dans les marécages : eau peu profonde et dense en végétation.
+  for(let ty=0; ty<OVERWORLD_H; ty++){
+    for(let tx=0; tx<OVERWORLD_W; tx++){
+      if(biome[idx(tx,ty)]==='swamp' && Math.random()<0.05){
+        const r = randi(1,3);
+        for(let dy=-r; dy<=r; dy++){
+          for(let dx=-r; dx<=r; dx++){
+            const nx=tx+dx, ny=ty+dy;
+            if(!inBounds(nx,ny) || ny>=OVERWORLD_H) continue;
+            if(biome[idx(nx,ny)]!=='swamp') continue;
+            if(dist(nx,ny,tx,ty)+rand(-0.8,0.8) < r) tiles[idx(nx,ny)] = TILE_TYPES.WATER;
+          }
+        }
+      }
+    }
+  }
+
+  const rockZones = randi(150,315);
+  for(let z=0;z<rockZones;z++){
+    const cx = randi(4,WORLD_W-4), cy = randi(4,OVERWORLD_H-4), r = randi(2,4);
+    for(let ty=cy-r; ty<=cy+r; ty++){
+      for(let tx=cx-r; tx<=cx+r; tx++){
+        if(!inBounds(tx,ty)) continue;
+        if(tiles[idx(tx,ty)]!==TILE_TYPES.GRASS) continue;
+        if(dist(tx,ty,cx,cy)+rand(-1,1) < r) tiles[idx(tx,ty)] = TILE_TYPES.ROCKFLOOR;
+      }
+    }
+  }
+
+  // Zones rocheuses supplémentaires en montagne (bien plus denses).
+  for(let ty=0; ty<OVERWORLD_H; ty++){
+    for(let tx=0; tx<OVERWORLD_W; tx++){
+      if(biome[idx(tx,ty)]==='mountain' && tiles[idx(tx,ty)]===TILE_TYPES.GRASS && Math.random()<0.35){
+        tiles[idx(tx,ty)] = TILE_TYPES.ROCKFLOOR;
+      }
+    }
+  }
+
+  for(let i=0;i<3000;i++){
+    const tx = randi(0,WORLD_W-1), ty = randi(0,OVERWORLD_H-1);
+    if(tiles[idx(tx,ty)]===TILE_TYPES.WATER) continue;
+    if(objects[idx(tx,ty)]) continue;
+    if(tiles[idx(tx,ty)]===TILE_TYPES.ROCKFLOOR || Math.random()<0.12){
+      objects[idx(tx,ty)] = {type:'rock', hp:3, maxHp:3};
+    }
+  }
+  // Davantage de rochers minables dans les zones de montagne.
+  for(let i=0;i<400;i++){
+    const tx = randi(0,WORLD_W-1), ty = randi(0,OVERWORLD_H-1);
+    if(biome[idx(tx,ty)]!=='mountain') continue;
+    if(tiles[idx(tx,ty)]===TILE_TYPES.WATER) continue;
+    if(objects[idx(tx,ty)]) continue;
+    if(Math.random()<0.5) objects[idx(tx,ty)] = {type:'rock', hp:4, maxHp:4};
+  }
+
+  // Végétation : beaucoup plus d'arbres qu'avant (arbres normaux en plaine,
+  // sapins en zone enneigée, cactus en désert, forêts denses, mangroves en
+  // marécage, arbres tropicaux en jungle).
+  const forestCount = randi(2000,3500);
+  for(let f=0;f<forestCount;f++){
+    const cx = randi(3,WORLD_W-3), cy = randi(3,OVERWORLD_H-3), n = randi(7,15);
+    for(let t=0;t<n;t++){
+      const tx = cx + randi(-3,3), ty = cy + randi(-3,3);
+      if(!inBounds(tx,ty)) continue;
+      if(tiles[idx(tx,ty)]!==TILE_TYPES.GRASS) continue;
+      if(objects[idx(tx,ty)]) continue;
+      const b = biome[idx(tx,ty)];
+      if(b==='desert'){
+        if(Math.random()<0.4) objects[idx(tx,ty)] = {type:'tree', variant:'cactus', hp:2, maxHp:2};
+      } else if(b==='snow'){
+        objects[idx(tx,ty)] = {type:'tree', variant:'pine', hp:3, maxHp:3};
+      } else if(b==='forest'){
+        objects[idx(tx,ty)] = {type:'tree', variant:'normal', hp:3, maxHp:3};
+      } else if(b==='jungle'){
+        objects[idx(tx,ty)] = {type:'tree', variant:'jungle', hp:4, maxHp:4};
+      } else if(b==='swamp'){
+        if(Math.random()<0.75) objects[idx(tx,ty)] = {type:'tree', variant:'mangrove', hp:3, maxHp:3};
+      } else if(b==='mountain'){
+        if(Math.random()<0.3) objects[idx(tx,ty)] = {type:'tree', variant:'pine', hp:3, maxHp:3};
+      } else {
+        if(Math.random()<0.8) objects[idx(tx,ty)] = {type:'tree', variant:'normal', hp:3, maxHp:3};
+      }
+    }
+  }
+  // Passe supplémentaire d'arbres isolés pour densifier davantage la carte.
+  for(let i=0;i<260;i++){
+    const tx = randi(0,WORLD_W-1), ty = randi(0,OVERWORLD_H-1);
+    if(tiles[idx(tx,ty)]!==TILE_TYPES.GRASS) continue;
+    if(objects[idx(tx,ty)]) continue;
+    const b = biome[idx(tx,ty)];
+    if(b==='desert'){ if(Math.random()<0.3) objects[idx(tx,ty)] = {type:'tree', variant:'cactus', hp:2, maxHp:2}; }
+    else if(b==='snow'){ if(Math.random()<0.88) objects[idx(tx,ty)] = {type:'tree', variant:'pine', hp:3, maxHp:3}; }
+    else if(b==='jungle'){ if(Math.random()<0.7) objects[idx(tx,ty)] = {type:'tree', variant:'jungle', hp:4, maxHp:4}; }
+    else if(b==='swamp'){ if(Math.random()<0.5) objects[idx(tx,ty)] = {type:'tree', variant:'mangrove', hp:3, maxHp:3}; }
+    else if(Math.random()<0.6) objects[idx(tx,ty)] = {type:'tree', variant:'normal', hp:3, maxHp:3};
+  }
+
+  for(let i=0;i<55;i++){
+    const tx = randi(0,WORLD_W-1), ty = randi(0,OVERWORLD_H-1);
+    if(tiles[idx(tx,ty)]!==TILE_TYPES.GRASS) continue;
+    if(objects[idx(tx,ty)]) continue;
+    const b = biome[idx(tx,ty)];
+    if(b==='desert' || b==='snow' || b==='mountain') continue;
+    if(Math.random()<0.5) objects[idx(tx,ty)] = {type:'bush', hp:1, maxHp:1, berries:true};
+  }
+
+  const pcx = Math.floor(WORLD_W/2), pcy = Math.floor(OVERWORLD_H/2);
+  for(let ty=pcy-3; ty<=pcy+3; ty++){
+    for(let tx=pcx-3; tx<=pcx+3; tx++){
+      if(!inBounds(tx,ty)) continue;
+      if(tiles[idx(tx,ty)]===TILE_TYPES.WATER) tiles[idx(tx,ty)] = TILE_TYPES.GRASS;
+      const o = objects[idx(tx,ty)];
+      if(o && (o.type==='rock' || o.type==='tree')) objects[idx(tx,ty)] = null;
+    }
+  }
+
+  generateOuterWaterBorder();
+  generateBarrierAndBackstage();
+  setupDungeon2();
+
+  for(let i=0;i<4;i++) spawnAnimal('rabbit');
+  for(let i=0;i<4;i++) spawnAnimal('boar');
+  for(let i=0;i<6;i++) spawnAnimal('deer');
+  for(let i=0;i<5;i++) spawnAnimal('scorpion');
+  for(let i=0;i<5;i++) spawnWolfPack(randi(3,4));
+  for(let i=0;i<4;i++) spawnAnimal('fox');
+  for(let i=0;i<3;i++) spawnAnimal('bear');
+  for(let i=0;i<4;i++) spawnAnimal('crocodile');
+  for(let i=0;i<4;i++) spawnAnimal('monkey');
+  for(let i=0;i<5;i++) spawnAnimal('goat');
+  for(let i=0;i<6;i++) spawnAnimal('frog');
+}
+
+/* =========================================================
+   DONJON CACHÉ DU GARDIEN LAMÉ
+========================================================= */
+function isInDungeon2Area(tx,ty){
+  if(!dungeon2) return false;
+  return tx>=dungeon2.ox-1 && tx<=dungeon2.ox+dungeon2.w && ty>=dungeon2.oy-1 && ty<=dungeon2.oy+dungeon2.h;
+}
+
+function generateOuterWaterBorder(){
+  // Tout le tour de la carte explorable est bordé d'eau infranchissable,
+  // comme la bande qui sépare déjà l'overworld de la zone cachée.
+  for(let ty=0; ty<OVERWORLD_H; ty++){
+    for(let tx=0; tx<OVERWORLD_W; tx++){
+      const onBorder = tx<BORDER_THICKNESS || ty<BORDER_THICKNESS ||
+                        tx>=OVERWORLD_W-BORDER_THICKNESS || ty>=OVERWORLD_H-BORDER_THICKNESS;
+      if(!onBorder) continue;
+      const i = idx(tx,ty);
+      tiles[i] = TILE_TYPES.WATER;
+      objects[i] = null;
+      biome[i] = 'barrier';
+    }
+  }
+}
+
+function generateBarrierAndBackstage(){
+  // Bande d'eau infranchissable : impossible d'atteindre la zone cachée à pied.
+  for(let ty=OVERWORLD_H; ty<BACKSTAGE_Y; ty++){
+    for(let tx=0; tx<WORLD_W; tx++){
+      const i = idx(tx,ty);
+      tiles[i] = TILE_TYPES.WATER;
+      objects[i] = null;
+      biome[i] = 'barrier';
+    }
+  }
+  // Zone cachée par défaut : entourée d'eau (île), sera creusée (salle du donjon)
+  // par setupDungeon2. Ainsi, même sur un grand écran, on ne voit jamais de
+  // "plaine" qui traînerait hors des murs du donjon : tout ce qui n'est pas
+  // la salle elle-même est de l'eau.
+  for(let ty=BACKSTAGE_Y; ty<WORLD_H; ty++){
+    for(let tx=0; tx<WORLD_W; tx++){
+      const i = idx(tx,ty);
+      tiles[i] = TILE_TYPES.WATER;
+      objects[i] = null;
+      biome[i] = 'barrier';
+    }
+  }
+}
+
+function setupDungeon2(){
+  const w=13, h=11;
+  const ox = randi(4, WORLD_W-4-w);
+  const oy = BACKSTAGE_Y + Math.floor((BACKSTAGE_H-h)/2);
+
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const tx=ox+x, ty=oy+y;
+      if(!inBounds(tx,ty)) continue;
+      const i = idx(tx,ty);
+      tiles[i] = TILE_TYPES.ROCKFLOOR;
+      biome[i] = 'dungeon2';
+      const border = (x===0||y===0||x===w-1||y===h-1);
+      objects[i] = border ? {type:'dungeon2_wall', hp:9999, maxHp:9999} : null;
+    }
+  }
+  const entryTx = ox+Math.floor(w/2), entryTy = oy+h-2;
+  const exitTx = ox+Math.floor(w/2), exitTy = oy;
+
+  // L'entrée reste dans la zone visible/explorable, une seule case, dissimulée.
+  let etx=0, ety=0, etries=0;
+  do{
+    etx = randi(4,WORLD_W-4); ety = randi(4,OVERWORLD_H-4); etries++;
+  } while(etries<400 && (
+    tiles[idx(etx,ety)]!==TILE_TYPES.GRASS ||
+    objects[idx(etx,ety)] ||
+    dist(etx,ety, WORLD_W/2, OVERWORLD_H/2) < 25
+  ));
+  objects[idx(etx,ety)] = {type:'dungeon2_entrance'};
+
+  dungeon2 = {
+    ox,oy,w,h, entryTx,entryTy, exitTx,exitTy,
+    entranceTx:etx, entranceTy:ety,
+    sealed:false, defeated:false, boss:null
+  };
+}
+
+const ANIMAL_DEFS = {
+  rabbit:    {hp:10, speed:70,  hostile:false, skittish:false, prey:true,  biomes:['plains','forest']},
+  boar:      {hp:26, speed:45,  hostile:false, skittish:false, prey:true,  biomes:['plains','forest']},
+  deer:      {hp:16, speed:85,  hostile:false, skittish:true,  prey:true,  biomes:['forest']},
+  scorpion:  {hp:18, speed:60,  hostile:true,  dmg:8,  aggro:220, prey:false, biomes:['desert']},
+  wolf:      {hp:34, speed:95,  hostile:false, dmg:14, aggro:260, prey:false, predator:true, biomes:['snow']},
+  fox:       {hp:12, speed:120, hostile:false, skittish:true, prey:true, thief:true, biomes:['forest','plains']},
+  bear:      {hp:70, speed:52,  hostile:true,  dmg:22, aggro:200, territorial:true, leash:260, biomes:['mountain','forest','snow']},
+  crocodile: {hp:30, speed:150, hostile:true,  dmg:18, aggro:100, ambush:true, biomes:['swamp']},
+  monkey:    {hp:14, speed:100, hostile:false, prey:false, thief:true, ranged:true, biomes:['jungle']},
+  goat:      {hp:14, speed:105, hostile:false, skittish:true, prey:true, biomes:['mountain']},
+  frog:      {hp:4,  speed:80,  hostile:false, prey:true, harmless:true, biomes:['swamp','jungle']},
+};
+const ANIMAL_LABELS = {
+  rabbit:'Lapin', boar:'Sanglier', deer:'Cerf', scorpion:'Scorpion', wolf:'Loup',
+  fox:'Renard', bear:'Ours', crocodile:'Crocodile', monkey:'Singe', goat:'Chèvre', frog:'Grenouille'
+};
+
+// Choisit une case autour du joueur, à ANIMAL_SPAWN_DIST_TILES blocs environ,
+// dont le biome correspond à l'animal souhaité. Retourne null si rien de valide trouvé.
+function findSpawnTileForBiomes(biomesAllowed){
+  let tries=0;
+  while(tries<120){
+    tries++;
+    const ang = rand(0,Math.PI*2);
+    const distPx = ANIMAL_SPAWN_DIST_PX + rand(-3*TILE, 3*TILE);
+    const px = player.x + Math.cos(ang)*distPx;
+    const py = player.y + Math.sin(ang)*distPx;
+    const tx = Math.floor(px/TILE), ty = Math.floor(py/TILE);
+    if(tx<0||ty<0||tx>=WORLD_W||ty>=OVERWORLD_H) continue;
+    if(tileSolid(tx,ty)) continue;
+    if(tiles[idx(tx,ty)]!==TILE_TYPES.GRASS) continue;
+    if(!biomesAllowed.includes(biome[idx(tx,ty)])) continue;
+    if(isInDungeon2Area(tx,ty)) continue;
+    return {tx,ty};
+  }
+  return null;
+}
+
+// Case pour le crocodile : peut apparaître directement sur une case d'eau peu
+// profonde d'un marécage, pour s'y tenir immobile en embuscade.
+function findSwampWaterSpawn(){
+  let tries=0;
+  while(tries<120){
+    tries++;
+    const ang = rand(0,Math.PI*2);
+    const distPx = ANIMAL_SPAWN_DIST_PX + rand(-3*TILE, 3*TILE);
+    const px = player.x + Math.cos(ang)*distPx;
+    const py = player.y + Math.sin(ang)*distPx;
+    const tx = Math.floor(px/TILE), ty = Math.floor(py/TILE);
+    if(tx<1||ty<1||tx>=WORLD_W-1||ty>=OVERWORLD_H-1) continue;
+    if(biome[idx(tx,ty)]!=='swamp') continue;
+    if(isInDungeon2Area(tx,ty)) continue;
+    return {tx,ty};
+  }
+  return findSpawnTileForBiomes(['swamp']);
+}
+
+function spawnAnimal(kind){
+  const def = ANIMAL_DEFS[kind];
+  const spot = (kind==='crocodile') ? findSwampWaterSpawn() : findSpawnTileForBiomes(def.biomes);
+  if(!spot) return;
+  const {tx,ty} = spot;
+  const hx = tx*TILE+16, hy = ty*TILE+16;
+  animals.push({
+    kind, x:hx, y:hy,
+    hp:def.hp, maxHp:def.hp, speed:def.speed,
+    hostile:!!def.hostile, skittish:!!def.skittish, predator:!!def.predator, prey:!!def.prey,
+    thief:!!def.thief, ranged:!!def.ranged, territorial:!!def.territorial, ambush:!!def.ambush,
+    harmless:!!def.harmless,
+    dmg:def.dmg||0, aggroRange:def.aggro||0, leashRange:def.leash||0,
+    homeX:hx, homeY:hy,
+    provoked:false, provokeTimer:0, huntTarget:null,
+    wanderAngle: rand(0,Math.PI*2), wanderT: rand(0,2),
+    fleeTimer:0, hitCd:0, faceDir:-1,
+    stealCd: rand(0,2), throwCd: rand(1,3),
+    submerged: !!def.ambush, burstTimer:0
+  });
+}
+
+function spawnWolfPack(count){
+  const spot = findSpawnTileForBiomes(['snow']);
+  if(!spot) return;
+  const {tx,ty} = spot;
+  const def = ANIMAL_DEFS.wolf;
+  for(let i=0;i<count;i++){
+    const ox = clamp(tx+randi(-2,2),1,WORLD_W-2), oy = clamp(ty+randi(-2,2),1,OVERWORLD_H-2);
+    if(tileSolid(ox,oy)) continue;
+    animals.push({
+      kind:'wolf', x:ox*TILE+16, y:oy*TILE+16,
+      hp:def.hp, maxHp:def.hp, speed:def.speed,
+      hostile:false, skittish:false, predator:true, prey:false,
+      thief:false, ranged:false, territorial:false, ambush:false, harmless:false,
+      dmg:def.dmg, aggroRange:def.aggro, leashRange:0,
+      homeX:ox*TILE+16, homeY:oy*TILE+16,
+      provoked:false, provokeTimer:0, huntTarget:null,
+      wanderAngle: rand(0,Math.PI*2), wanderT: rand(0,2),
+      fleeTimer:0, hitCd:0, faceDir:-1,
+      stealCd:0, throwCd:0, submerged:false, burstTimer:0
+    });
+  }
+}
+
+function tileSolid(tx,ty){
+  if(!inBounds(tx,ty)) return true;
+  if(tiles[idx(tx,ty)]===TILE_TYPES.WATER) return true;
+  const o = objects[idx(tx,ty)];
+  if(!o) return false;
+  // Les arbres ne bloquent plus les déplacements (joueur ou animaux).
+  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='dungeon2_wall') return true;
+  if(o.type==='door') return !o.open;
+  return false;
+}
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+function pushMsg(text){
+  const el = document.createElement('div');
+  el.textContent = text;
+  document.getElementById('msgLog').prepend(el);
+  setTimeout(()=>{ el.style.transition='opacity .4s'; el.style.opacity='0'; setTimeout(()=>el.remove(),400); }, 1800);
+}
+
+/* =========================================================
+   PARTICULES
+========================================================= */
+function spawnParticles(x,y,color,n){
+  for(let i=0;i<n;i++) particles.push({x,y,vx:rand(-60,60),vy:rand(-90,-20),life:0.6,color});
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 220*dt; p.life -= dt;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
+
+/* =========================================================
+   CRAFT
+========================================================= */
+const RECIPES = [
+  {id:'axe1', name:'Hache en bois', icon:'🪓', cost:{wood:3}, show:()=>hasTool('axe')<1, effect:()=>addItem('axe_wood',1)},
+  {id:'pick1', name:'Pioche en bois', icon:'⛏️', cost:{wood:3}, show:()=>hasTool('pick')<1, effect:()=>addItem('pick_wood',1)},
+  {id:'sword1', name:'Épée en bois', icon:'🗡️', cost:{wood:2}, show:()=>hasTool('sword')<1, effect:()=>addItem('sword_wood',1)},
+  {id:'axe2', name:'Hache en pierre', icon:'🪓', cost:{wood:2, stone:3}, show:()=>hasTool('axe')===1, effect:()=>addItem('axe_stone',1)},
+  {id:'pick2', name:'Pioche en pierre', icon:'⛏️', cost:{wood:2, stone:3}, show:()=>hasTool('pick')===1, effect:()=>addItem('pick_stone',1)},
+  {id:'sword2', name:'Épée en pierre', icon:'🗡️', cost:{wood:2, stone:3}, show:()=>hasTool('sword')===1, effect:()=>addItem('sword_stone',1)},
+  {id:'wallx5', name:'5 murs', icon:'🧱', cost:{wood:5}, show:()=>true, effect:()=>addItem('wall',5)},
+  {id:'firex1', name:'1 feu de camp', icon:'🔥', cost:{wood:3, stone:2}, show:()=>true, effect:()=>addItem('campfire',1)},
+  {id:'lever', name:'Levier', icon:'🔘', cost:{stone:2}, show:()=>true, effect:()=>addItem('lever',1)},
+  {id:'wire', name:'Fil conducteur (x8)', icon:'➰', cost:{stone:2}, show:()=>true, effect:()=>addItem('wire',8)},
+  {id:'timer', name:'Minuterie directionnelle (x2)', icon:'🔁', cost:{wood:2, stone:2}, show:()=>true, effect:()=>addItem('timer',2)},
+  {id:'piston', name:'Piston', icon:'🔲', cost:{wood:3, stone:3}, show:()=>true, effect:()=>addItem('piston',1)},
+  {id:'plate', name:'Plaque de pression', icon:'⬜', cost:{wood:2}, show:()=>true, effect:()=>addItem('plate',1)},
+  {id:'door', name:'Porte', icon:'🚪', cost:{wood:4}, show:()=>true, effect:()=>addItem('door',1)},
+];
+
+function canAfford(cost){ for(const k in cost){ if(countItem(k) < cost[k]) return false; } return true; }
+function pay(cost){ for(const k in cost){ removeItem(k, cost[k]); } }
+
+function renderRecipes(){
+  const list = document.getElementById('recipeList');
+  list.innerHTML = '';
+  RECIPES.filter(r=>r.show()).forEach(r=>{
+    const div = document.createElement('div');
+    div.className = 'recipe';
+    const costTxt = Object.entries(r.cost).map(([k,v])=>{
+      const ic = {wood:'🪵',stone:'🪨'}[k] || k;
+      return `${v} ${ic}`;
+    }).join(' + ');
+    div.innerHTML = `<div class="name"><span style="font-size:20px">${r.icon}</span>${r.name}</div><div class="cost">${costTxt}</div>`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Fabriquer';
+    btn.disabled = !canAfford(r.cost);
+    btn.onclick = ()=>{
+      if(!canAfford(r.cost)) return;
+      pay(r.cost); r.effect();
+      pushMsg(`Fabriqué : ${r.name}`);
+      renderRecipes(); updateHUD();
+    };
+    div.appendChild(btn);
+    list.appendChild(div);
+  });
+}
+
+function toggleCraft(force){
+  craftOpen = (force!==undefined) ? force : !craftOpen;
+  document.getElementById('craftPanel').style.display = craftOpen ? 'block' : 'none';
+  if(craftOpen) renderRecipes();
+}
+
+/* =========================================================
+   HOTBAR & INVENTAIRE COMPLET
+========================================================= */
+function slotHTML(s){
+  if(!s) return '';
+  const def = ITEM_DEFS[s.id];
+  const badge = def.badge ? `<span class="badge">${def.badge}</span>` : '';
+  const count = def.max>1 ? `<span class="count">${s.count}</span>` : '';
+  return `<span style="font-size:24px">${def.icon}</span>${count}${badge}`;
+}
+
+function buildHotbarDOM(){
+  const bar = document.getElementById('hotbar');
+  bar.innerHTML = '';
+  for(let i=0;i<9;i++){
+    const div = document.createElement('div');
+    div.className = 'slot';
+    div.id = 'hb-'+i;
+    div.innerHTML = `<span class="num">${i+1}</span>`;
+    div.onclick = ()=> selectSlot(i);
+    bar.appendChild(div);
+  }
+}
+
+function renderHotbar(){
+  for(let i=0;i<9;i++){
+    const div = document.getElementById('hb-'+i);
+    if(!div) continue;
+    div.classList.toggle('active', i===selectedSlot);
+    div.innerHTML = `<span class="num">${i+1}</span>${slotHTML(player.slots[i])}`;
+  }
+}
+
+function selectSlot(i){
+  selectedSlot = clamp(i,0,8);
+  renderHotbar();
+}
+
+function buildInvGridDOM(){
+  const grid = document.getElementById('invGrid');
+  grid.innerHTML = '';
+  for(let i=0;i<N_SLOTS;i++){
+    const div = document.createElement('div');
+    div.className = 'islot' + (i<9?' hotbarRow':'');
+    div.id = 'inv-'+i;
+    div.onclick = ()=> clickSlot(i);
+    grid.appendChild(div);
+  }
+}
+
+function renderInventoryPanel(){
+  for(let i=0;i<N_SLOTS;i++){
+    const div = document.getElementById('inv-'+i);
+    if(!div) continue;
+    const s = player.slots[i];
+    div.innerHTML = slotHTML(s);
+    div.title = s ? ITEM_DEFS[s.id].name : '';
+  }
+}
+
+function clickSlot(i){
+  const cur = player.slots[i];
+  if(heldItem===null){
+    if(cur){ heldItem = cur; player.slots[i] = null; }
+  } else if(!cur){
+    player.slots[i] = heldItem; heldItem = null;
+  } else if(cur.id===heldItem.id){
+    const max = ITEM_DEFS[cur.id].max;
+    const moved = Math.min(max-cur.count, heldItem.count);
+    cur.count += moved; heldItem.count -= moved;
+    if(heldItem.count<=0) heldItem = null;
+  } else {
+    player.slots[i] = heldItem; heldItem = cur;
+  }
+  renderInventoryPanel();
+  renderHotbar();
+  updateCursorItem();
+}
+
+function updateCursorItem(){
+  const el = document.getElementById('cursorItem');
+  if(heldItem){
+    el.style.display = 'flex';
+    el.innerHTML = slotHTML(heldItem);
+  } else {
+    el.style.display = 'none';
+  }
+}
+window.addEventListener('mousemove', e=>{
+  const el = document.getElementById('cursorItem');
+  el.style.left = (e.clientX-22)+'px';
+  el.style.top = (e.clientY-22)+'px';
+});
+
+function toggleInventory(force){
+  const wasOpen = invOpen;
+  invOpen = (force!==undefined) ? force : !invOpen;
+  if(wasOpen && !invOpen && heldItem){
+    const leftover = addItem(heldItem.id, heldItem.count);
+    if(leftover>0) spawnDrop(player.x,player.y,heldItem.id,leftover);
+    heldItem = null; updateCursorItem();
+  }
+  document.getElementById('invPanel').style.display = invOpen ? 'flex' : 'none';
+  if(invOpen) renderInventoryPanel();
+}
+document.getElementById('closeInv').onclick = ()=> toggleInventory(false);
+
+/* =========================================================
+   HUD (vie / faim / jour)
+========================================================= */
+function updateHUD(){
+  document.getElementById('hpFill').style.width = Math.max(0,player.hp/player.maxHp*100)+'%';
+  document.getElementById('hungerFill').style.width = Math.max(0,player.hunger/player.maxHunger*100)+'%';
+  renderHotbar();
+  if(invOpen) renderInventoryPanel();
+
+  const night = isNight();
+  document.getElementById('dayIcon').textContent = night ? '🌙' : '☀️';
+  document.getElementById('dayLabel').textContent = (night?'Nuit ':'Jour ') + dayCount;
+}
+function isNight(){ return dayTime > NIGHT_START && dayTime < NIGHT_END; }
+
+/* =========================================================
+   INPUT
+========================================================= */
+window.addEventListener('keydown', e=>{
+  keys[e.key.toLowerCase()] = true;
+  if(gameOver || !started) return;
+  const k = e.key.toLowerCase();
+  if(k==='c'){ toggleCraft(); }
+  if(k==='i'){ toggleInventory(); }
+  if(k==='escape'){ toggleCraft(false); toggleInventory(false); }
+  if(k==='e'){ if(keys['shift']) doHarvestOrEat(); else doInteract(); }
+  if(k==='b'){ placeSelected(); }
+  if(k==='a'){ dropSelected(); }
+  if(k>='1' && k<='9'){ selectSlot(parseInt(k,10)-1); }
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
+document.getElementById('closeCraft').onclick = ()=> toggleCraft(false);
+document.getElementById('restartBtn').onclick = ()=>{ startGame(); };
+
+/* =========================================================
+   ACTIONS JOUEUR
+========================================================= */
+function facingOffset(){
+  switch(player.facing){
+    case 'up': return {dx:0,dy:-1};
+    case 'down': return {dx:0,dy:1};
+    case 'left': return {dx:-1,dy:0};
+    case 'right': return {dx:1,dy:0};
+  }
+  return {dx:0,dy:1};
+}
+function facingTile(){
+  const {dx,dy} = facingOffset();
+  return {tx:Math.floor(player.x/TILE)+dx, ty:Math.floor(player.y/TILE)+dy};
+}
+function swordDamage(){ return [12,26,44][hasTool('sword')]; }
+
+// E : combat (zombis, animaux), activer un levier.
+function doInteract(){
+  if(craftOpen || invOpen) return;
+  const range = 42;
+
+  let target=null, bestD=Infinity;
+  for(const z of zombies){ const d=dist(player.x,player.y,z.x,z.y); if(d<range && d<bestD){bestD=d; target=z;} }
+  if(target){
+    const dmg = swordDamage();
+    target.hp -= dmg;
+    spawnParticles(target.x,target.y,'#8b0000',8);
+    if(target.hp<=0){ zombies.splice(zombies.indexOf(target),1); pushMsg('Zombi éliminé !'); spawnParticles(target.x,target.y,'#4a1010',14); }
+    else pushMsg('Coup porté !');
+    return;
+  }
+
+  if(ent){
+    const ed = dist(player.x,player.y,ent.x,ent.y);
+    if(ed<range){
+      const dmg = swordDamage();
+      ent.hp -= dmg;
+      spawnParticles(ent.x,ent.y,'#5a3a1e',10);
+      if(ent.hp<=0) defeatEnt();
+      else pushMsg("Coup porté à l'Ent !");
+      return;
+    }
+  }
+
+  if(dungeon2 && dungeon2.boss){
+    const boss = dungeon2.boss;
+    const bd = dist(player.x,player.y,boss.x,boss.y);
+    if(bd<range){
+      const dmg = swordDamage();
+      boss.hp -= dmg;
+      spawnParticles(boss.x,boss.y,'#7ecbff',10);
+      if(boss.hp<=0) defeatBoss2();
+      else pushMsg('Coup porté au Gardien Lamé !');
+      return;
+    }
+  }
+
+  let animalTarget=null; bestD=Infinity;
+  for(const a of animals){ const d=dist(player.x,player.y,a.x,a.y); if(d<range && d<bestD){bestD=d; animalTarget=a;} }
+  if(animalTarget){
+    const dmg = swordDamage();
+    animalTarget.hp -= dmg;
+    if(animalTarget.predator){
+      animalTarget.provoked = true;
+      animalTarget.provokeTimer = 20;
+      for(const w of animals){
+        if(w.predator && w!==animalTarget && dist(w.x,w.y,animalTarget.x,animalTarget.y)<220){
+          w.provoked = true; w.provokeTimer = 20;
+        }
+      }
+      pushMsg('Vous avez provoqué la meute !');
+    } else if(animalTarget.territorial){
+      animalTarget.provoked = true;
+      animalTarget.provokeTimer = 12;
+    } else if(!animalTarget.hostile){
+      animalTarget.fleeTimer = 5;
+    }
+    spawnParticles(animalTarget.x,animalTarget.y,'#7a3b2e',6);
+    if(animalTarget.hp<=0){
+      const label = ANIMAL_LABELS[animalTarget.kind] || 'Animal';
+      pushMsg(`${label} éliminé.`);
+      dropAnimalLoot(animalTarget);
+      animals.splice(animals.indexOf(animalTarget),1);
+      spawnParticles(animalTarget.x,animalTarget.y,'#4a1010',10);
+      updateHUD();
+    }
+    return;
+  }
+
+  const {tx,ty} = facingTile();
+  if(!inBounds(tx,ty)) return;
+  const o = objects[idx(tx,ty)];
+  if(!o){
+    const w = wires[idx(tx,ty)];
+    if(w){
+      if(w.kind==='wire') pushMsg(w.powered ? 'Un câble électrique (alimenté) ⚡' : 'Un câble électrique.');
+      else if(w.kind==='timer') pushMsg(`Minuterie directionnelle (${w.outputOn?'signal transmis ⚡':(w.charging?'en compte à rebours…':'en attente')}).`);
+      pushMsg('Maj+E pour le récupérer.');
+      return;
+    }
+    pushMsg("Rien à faire ici.");
+    return;
+  }
+
+  if(o.type==='tree' || o.type==='rock'){
+    pushMsg('Maj+E pour récolter.');
+  } else if(o.type==='bush'){
+    pushMsg(o.berries ? 'Maj+E pour cueillir les baies.' : 'Ce buisson est vide pour le moment.');
+  } else if(o.type==='wall'){
+    pushMsg('Un mur. Maj+E pour le récupérer.');
+  } else if(o.type==='campfire'){
+    pushMsg("C'est un feu de camp (Maj+E pour le récupérer).");
+  } else if(o.type==='lever'){
+    o.on = !o.on;
+    pushMsg(o.on ? 'Levier activé ⚡' : 'Levier désactivé');
+  } else if(o.type==='door'){
+    pushMsg(o.open ? "Cette porte est alimentée et ouverte (Maj+E pour la récupérer)." : "Cette porte est fermée, alimentez-la via un circuit (Maj+E pour la récupérer).");
+  } else if(o.type==='piston'){
+    pushMsg('Un piston. Alimentez-le avec un levier relié par du fil (Maj+E pour le récupérer).');
+  } else if(o.type==='plate'){
+    pushMsg('Une plaque de pression, elle réagit toute seule. Maj+E pour la récupérer.');
+  }
+  updateHUD();
+}
+
+function dropAnimalLoot(a){
+  if(a.kind==='bear' || a.kind==='goat'){
+    const n = randi(1,2);
+    const leftover = addItem('hide', n);
+    if(leftover>0) spawnDrop(a.x,a.y,'hide',leftover);
+    pushMsg(`+${n} peau 🟤`);
+  } else if(a.kind==='monkey'){
+    const leftover = addItem('feather',1);
+    if(leftover>0) spawnDrop(a.x,a.y,'feather',leftover);
+  } else if(a.kind==='crocodile'){
+    const leftover = addItem('hide',1);
+    if(leftover>0) spawnDrop(a.x,a.y,'hide',leftover);
+  } else if(a.kind==='frog'){
+    // rien, animal inoffensif purement décoratif
+  }
+}
+
+// Maj+E : récolte (arbres/pierre/baies), manger l'objet sélectionné, casser un mécanisme posé.
+const BREAKABLE_PLACED = {wall:'wall', campfire:'campfire', lever:'lever', piston:'piston', door:'door', plate:'plate', sapling:'sapling'};
+
+function harvestTree(tx,ty,o){
+  const axeTier = hasTool('axe');
+  const dmg = axeTier>0 ? axeTier+1 : 1;
+  o.hp -= dmg;
+  spawnParticles(tx*TILE+16, ty*TILE+16, '#6b4423', 6);
+  if(o.hp<=0){
+    objects[idx(tx,ty)] = null;
+    const gain = 2 + axeTier*2;
+    const leftover = addItem('wood', gain);
+    if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'wood',leftover);
+    pushMsg(`+${gain} bois 🪵`);
+    if(Math.random()<0.4){
+      const sLeft = addItem('sapling',1);
+      if(sLeft>0) spawnDrop(tx*TILE+16,ty*TILE+16,'sapling',sLeft);
+      pushMsg("+1 pousse d'arbre 🌱");
+    }
+    forestBalance = clamp(forestBalance-1, 0, FOREST_BALANCE_MAX);
+    if(forestBalance<=0 && !ent) spawnEnt();
+  }
+  updateHUD();
+}
+function harvestRock(tx,ty,o){
+  const pickTier = hasTool('pick');
+  if(pickTier<1){ pushMsg("Il vous faut une pioche pour miner !"); return; }
+  o.hp -= pickTier;
+  spawnParticles(tx*TILE+16, ty*TILE+16, '#7c7c7c', 6);
+  if(o.hp<=0){
+    objects[idx(tx,ty)] = null;
+    const gain = 2 + pickTier*2;
+    const leftover = addItem('stone', gain);
+    if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'stone',leftover);
+    pushMsg(`+${gain} pierre 🪨`);
+  }
+  updateHUD();
+}
+function harvestBush(tx,ty){
+  objects[idx(tx,ty)] = {type:'bush', hp:1, maxHp:1, berries:false};
+  const leftover = addItem('berry',2);
+  if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'berry',leftover);
+  pushMsg('+2 baies 🍓');
+  spawnParticles(tx*TILE+16, ty*TILE+16, '#c0392b', 6);
+  setTimeout(()=>{ const cur=objects[idx(tx,ty)]; if(cur && cur.type==='bush') cur.berries=true; }, 20000);
+  updateHUD();
+}
+function breakPlacedAt(tx,ty,o){
+  const itemId = BREAKABLE_PLACED[o.type];
+  if(!itemId) return;
+  objects[idx(tx,ty)] = null;
+  const leftover = addItem(itemId,1);
+  if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,itemId,leftover);
+  pushMsg(`${ITEM_DEFS[itemId].name} récupéré(e) 🔧`);
+  spawnParticles(tx*TILE+16,ty*TILE+16,'#bbbbbb',7);
+  updateHUD();
+}
+
+function breakWireAt(tx,ty,w){
+  const itemId = (w.kind==='timer') ? 'timer' : 'wire';
+  wires[idx(tx,ty)] = null;
+  const leftover = addItem(itemId,1);
+  if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,itemId,leftover);
+  pushMsg(`${ITEM_DEFS[itemId].name} récupéré(e) 🔧`);
+  spawnParticles(tx*TILE+16,ty*TILE+16,'#ffb84a',7);
+  updateHUD();
+}
+
+function doHarvestOrEat(){
+  if(craftOpen || invOpen) return;
+  const {tx,ty} = facingTile();
+  if(inBounds(tx,ty)){
+    const o = objects[idx(tx,ty)];
+    if(o){
+      if(o.type==='tree'){ harvestTree(tx,ty,o); return; }
+      if(o.type==='rock'){ harvestRock(tx,ty,o); return; }
+      if(o.type==='bush' && o.berries){ harvestBush(tx,ty); return; }
+      const itemId = BREAKABLE_PLACED[o.type];
+      if(itemId){ breakPlacedAt(tx,ty,o); return; }
+    } else {
+      const w = wires[idx(tx,ty)];
+      if(w){ breakWireAt(tx,ty,w); return; }
+    }
+  }
+  eatSelected();
+}
+
+function eatSelected(){
+  const s = player.slots[selectedSlot];
+  if(!s){ pushMsg('Aucun objet sélectionné.'); return; }
+  const def = ITEM_DEFS[s.id];
+  if(!def || def.cat!=='food'){ pushMsg("Cet objet ne se mange pas."); return; }
+  removeItem(s.id,1);
+  player.hunger = Math.min(player.maxHunger, player.hunger+def.hunger);
+  player.hp = Math.min(player.maxHp, player.hp+def.heal);
+  pushMsg(`${def.name} mangé(e) ${def.icon}`);
+  updateHUD();
+}
+
+function dropSelected(){
+  if(craftOpen || invOpen) return;
+  const s = player.slots[selectedSlot];
+  if(!s){ pushMsg('Rien à jeter.'); return; }
+  const {dx,dy} = facingOffset();
+  spawnDrop(player.x+dx*24, player.y+dy*24, s.id, s.count);
+  player.slots[selectedSlot] = null;
+  pushMsg(`${ITEM_DEFS[s.id].name} jeté(e) au sol.`);
+  updateHUD();
+}
+
+/* =========================================================
+   POSE D'OBJETS (mur, feu, mécanismes...)
+========================================================= */
+function makePlaceObject(id, dir){
+  switch(id){
+    case 'wall': return {type:'wall', hp:4, maxHp:4};
+    case 'campfire': return {type:'campfire', hp:99, maxHp:99, light:true};
+    case 'lever': return {type:'lever', on:false};
+    case 'piston': return {type:'piston', dir, extended:false};
+    case 'plate': return {type:'plate', active:false};
+    case 'door': return {type:'door', open:false};
+    case 'sapling': return {type:'sapling', hp:1, maxHp:1, growTimer:rand(45,75)};
+  }
+  return null;
+}
+
+// Pose un fil conducteur ou une minuterie sur la couche cachée "wires",
+// indépendante de la couche "objects". On peut donc la poser SOUS n'importe
+// quel objet déjà présent (mur, arbre, rocher...) pour la dissimuler
+// complètement : par exemple relier un levier à une porte à travers un mur,
+// sans qu'aucun fil ne soit visible.
+function placeWireItem(id){
+  const {tx,ty} = facingTile();
+  if(!inBounds(tx,ty)){ pushMsg('Impossible de poser ici.'); return; }
+  if(tiles[idx(tx,ty)]===TILE_TYPES.WATER){ pushMsg("Impossible de poser dans l'eau."); return; }
+  if(wires[idx(tx,ty)]){ pushMsg('Un câble est déjà présent sur cette case.'); return; }
+
+  if(id==='wire'){
+    wires[idx(tx,ty)] = {kind:'wire', powered:false};
+  } else if(id==='timer'){
+    wires[idx(tx,ty)] = {
+    kind:'timer',
+    dir:facingOffset(),
+    powered:false,
+    charging:false,
+    outputOn:false,
+    timer:0,
+    delay:0.5,
+    offTimer:0,
+    offDelay:0.5 // délai avant extinction (1 seconde)
+};
+  } else {
+    return;
+  }
+
+  const slot = player.slots[selectedSlot];
+  slot.count -= 1;
+  if(slot.count<=0) player.slots[selectedSlot] = null;
+
+  const hidden = !!objects[idx(tx,ty)];
+  pushMsg(hidden ? `${ITEM_DEFS[id].name} posé(e), caché(e) sous l'objet existant.` : `${ITEM_DEFS[id].name} posé(e).`);
+  updateHUD();
+}
+
+function placeSelected(){
+  if(craftOpen || invOpen) return;
+  const slot = player.slots[selectedSlot];
+  if(!slot){ pushMsg('Aucun objet sélectionné.'); return; }
+  const def = ITEM_DEFS[slot.id];
+  if(!def || (def.cat!=='place' && def.cat!=='place_wire')){ pushMsg("Cet objet ne peut pas être posé."); return; }
+
+  if(def.cat==='place_wire'){ placeWireItem(slot.id); return; }
+
+  const {tx,ty} = facingTile();
+  if(!inBounds(tx,ty) || tileSolid(tx,ty) || objects[idx(tx,ty)]){ pushMsg('Impossible de poser ici.'); return; }
+  const obj = makePlaceObject(slot.id, facingOffset());
+  objects[idx(tx,ty)] = obj;
+  slot.count -= 1;
+  if(slot.count<=0) player.slots[selectedSlot] = null;
+  if(slot.id==='sapling'){
+    saplings.push(idx(tx,ty));
+    forestBalance = clamp(forestBalance+1, 0, FOREST_BALANCE_MAX);
+    pushMsg(`Pousse plantée 🌱 (Équilibre forêt : ${forestBalance}/${FOREST_BALANCE_MAX})`);
+  } else {
+    pushMsg(`${def.name} posé(e).`);
+  }
+  updateHUD();
+}
+
+/* =========================================================
+   CIRCUIT : propagation du courant, plaques, pistons, portes, minuteries
+========================================================= */
+let powerTimer = 0;
+const POWER_TICK = 0.12;
+
+// Détermine si la case (fromTx,fromTy) envoie du courant VERS la case
+// adjacente (toTx,toTy). Gère les trois types de source :
+//  - levier/plaque (objets) : émettent dans toutes les directions.
+//  - câble : émet dans toutes les directions s'il est alimenté (poweredArr).
+//  - minuterie : n'émet QUE dans sa direction de pose (comme un répéteur
+//    Minecraft), ce qui permet de chaîner deux minuteries directement
+//    l'une à côté de l'autre (sans câble entre elles) et donc de fermer
+//    de vraies boucles compactes.
+function tileFeedsInto(fromTx,fromTy,toTx,toTy,poweredArr){
+  if(!inBounds(fromTx,fromTy)) return false;
+  const fi = idx(fromTx,fromTy);
+  const o = objects[fi];
+  if(o && ((o.type==='lever' && o.on) || (o.type==='plate' && o.active))) return true;
+  const w = wires[fi];
+  if(w){
+    if(w.kind==='wire') return !!poweredArr[fi];
+    if(w.kind==='timer'){
+      if(!w.outputOn) return false;
+      return w.dir.dx===(toTx-fromTx) && w.dir.dy===(toTy-fromTy);
+    }
+  }
+  return false;
+}
+
+function updatePower(dt){
+  powerTimer -= dt;
+
+  for(let i=0;i<objects.length;i++){
+    const o = objects[i];
+    if(o && o.type==='plate'){
+      const tx=i%WORLD_W, ty=Math.floor(i/WORLD_W);
+      const cxp = tx*TILE+16, cyp = ty*TILE+16;
+      let active = dist(player.x,player.y,cxp,cyp) < 20;
+      if(!active){ for(const a of animals){ if(dist(a.x,a.y,cxp,cyp) < 18){ active=true; break; } } }
+      if(!active){ for(const z of zombies){ if(dist(z.x,z.y,cxp,cyp) < 18){ active=true; break; } } }
+      o.active = active;
+    }
+  }
+
+  if(powerTimer > 0) return;
+  powerTimer = POWER_TICK;
+
+  // "powered" marque tout câble atteint par le courant (levier/plaque
+  // source, ou sortie d'une minuterie qui débouche sur un câble). Sert de
+  // base à la propagation à travers le réseau de câbles.
+  const powered = new Uint8Array(WORLD_W*WORLD_H);
+  const queue = [];
+
+  for(let i=0;i<objects.length;i++){
+    const o = objects[i];
+    if(o && ((o.type==='lever' && o.on) || (o.type==='plate' && o.active))){
+      powered[i] = 1; queue.push(i);
+    }
+  }
+
+  // Une minuterie dont la sortie est active alimente le câble devant elle
+  // (si c'en est un), qui propage ensuite normalement.
+  for(let i=0;i<wires.length;i++){
+    const w = wires[i];
+    if(w && w.kind==='timer' && w.outputOn){
+      const tx=i%WORLD_W, ty=Math.floor(i/WORLD_W);
+      const fx = tx+w.dir.dx, fy = ty+w.dir.dy;
+      if(inBounds(fx,fy)){
+        const fi = idx(fx,fy);
+        const fw = wires[fi];
+        if(fw && fw.kind==='wire' && !powered[fi]){ powered[fi]=1; queue.push(fi); }
+      }
+    }
+  }
+
+  // Propagation à travers les câbles simples (omnidirectionnels), sur la
+  // couche cachée "wires" : ils conduisent qu'ils soient visibles ou cachés
+  // sous un mur, un arbre, etc. Une case déjà visitée n'est jamais
+  // retraitée, donc une BOUCLE de câbles ne provoque aucun blocage : elle
+  // se retrouve simplement entièrement alimentée si une source l'atteint.
+  while(queue.length){
+    const c = queue.pop();
+    const tx = c%WORLD_W, ty = Math.floor(c/WORLD_W);
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of dirs){
+      const nx=tx+dx, ny=ty+dy;
+      if(!inBounds(nx,ny)) continue;
+      const ni = idx(nx,ny);
+      if(powered[ni]) continue;
+      const nw = wires[ni];
+      if(nw && nw.kind==='wire'){ powered[ni]=1; queue.push(ni); }
+    }
+  }
+
+  for(let i=0;i<wires.length;i++){
+    const w = wires[i];
+    if(w && w.kind==='wire') w.powered = !!powered[i];
+  }
+
+  // Minuteries : lisent uniquement leur case ARRIÈRE (opposée à leur
+  // direction) via tileFeedsInto, ce qui gère aussi bien un câble qu'une
+  // AUTRE minuterie posée juste derrière elles. Après un court délai, la
+  // sortie s'active côté AVANT uniquement, et coupe instantanément si
+  // l'entrée retombe. Si la case arrière fait elle-même partie d'une boucle
+  // reconnectée à la sortie de cette minuterie, le courant s'auto-entretient
+  // indéfiniment une fois amorcé — exactement comme une boucle de
+  // répéteurs Minecraft.
+  for(let i=0;i<wires.length;i++){
+    const w = wires[i];
+    if(!w || w.kind!=='timer') continue;
+    const tx=i%WORLD_W, ty=Math.floor(i/WORLD_W);
+    const bx = tx-w.dir.dx, by = ty-w.dir.dy;
+    const inputOn = tileFeedsInto(bx,by,tx,ty,powered);
+    w.powered = inputOn;
+   if(inputOn){
+    w.offTimer = w.offDelay;
+
+    if(!w.charging && !w.outputOn){
+        w.charging = true;
+        w.timer = w.delay;
+    }
+
+}else{
+
+    if(w.charging){
+        w.charging = false;
+        w.timer = 0;
+    }
+
+    if(w.outputOn){
+        w.offTimer -= POWER_TICK;
+
+        if(w.offTimer <= 0){
+            w.outputOn = false;
+        }
+    }
+}
+
+if(w.charging){
+    w.timer -= POWER_TICK;
+
+    if(w.timer <= 0){
+        w.outputOn = true;
+        w.charging = false;
+        w.offTimer = w.offDelay;
+    }
+}
+  }
+
+  // Pistons / portes : vérifient chacun de leurs 4 voisins avec la même
+  // logique directionnelle (câble, levier/plaque, ou minuterie orientée
+  // vers eux).
+  for(let i=0;i<objects.length;i++){
+    const o = objects[i];
+    if(!o) continue;
+    if(o.type==='piston' || o.type==='door'){
+      const tx=i%WORLD_W, ty=Math.floor(i/WORLD_W);
+      let p=false;
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      for(const [dx,dy] of dirs){
+        const nx=tx+dx, ny=ty+dy;
+        if(tileFeedsInto(nx,ny,tx,ty,powered)){ p=true; break; }
+      }
+      if(o.type==='door'){ o.open = p; }
+      if(o.type==='piston'){
+        if(p && !o.extended){
+          const fx = tx+o.dir.dx, fy = ty+o.dir.dy;
+          tryPushWall(fx,fy,o.dir.dx,o.dir.dy);
+          o.extended = true;
+        } else if(!p && o.extended){
+          o.extended = false;
+        }
+      }
+    }
+  }
+}
+
+function tryPushWall(tx,ty,dx,dy){
+  if(!inBounds(tx,ty)) return;
+  const target = objects[idx(tx,ty)];
+  if(!target || target.type!=='wall') return;
+  const ntx = tx+dx, nty = ty+dy;
+  if(!inBounds(ntx,nty)) return;
+  if(tiles[idx(ntx,nty)]===TILE_TYPES.WATER) return;
+  if(objects[idx(ntx,nty)]) return;
+  objects[idx(ntx,nty)] = target;
+  objects[idx(tx,ty)] = null;
+}
+
+/* =========================================================
+   ZOMBIS
+========================================================= */
+function spawnZombie(){
+  if(zombies.length >= 9) return;
+  let tx,ty,tries=0;
+  do{ tx=randi(0,WORLD_W-1); ty=randi(0,OVERWORLD_H-1); tries++; }
+  while(tries<30 && (dist(tx*TILE,ty*TILE,player.x,player.y) < 380 || tileSolid(tx,ty) || isInDungeon2Area(tx,ty)));
+  zombies.push({x:tx*TILE+16, y:ty*TILE+16, hp:40, maxHp:40, speed:rand(55,80), hitCd:0});
+}
+function updateZombies(dt){
+  const night = isNight();
+  if(night && Math.random() < dt*0.35) spawnZombie();
+  if(!night && zombies.length>0 && Math.random()<dt*0.6){
+    zombies.splice(0,1);
+  }
+
+  for(const z of zombies){
+    const d = dist(z.x,z.y,player.x,player.y);
+    if(d < 320){
+      const ang = Math.atan2(player.y-z.y, player.x-z.x);
+      const nx = z.x + Math.cos(ang)*z.speed*dt;
+      const ny = z.y + Math.sin(ang)*z.speed*dt;
+      if(!tileSolid(Math.floor(nx/TILE), Math.floor(z.y/TILE))) z.x = nx;
+      if(!tileSolid(Math.floor(z.x/TILE), Math.floor(ny/TILE))) z.y = ny;
+    }
+    z.hitCd -= dt;
+    if(d < 20 && z.hitCd<=0){
+      player.hp -= 10; player.hurtFlash = 0.3; z.hitCd = 1.0;
+      spawnParticles(player.x,player.y,'#e74c3c',10);
+      if(player.hp<=0) killPlayer('Dévoré par un zombi');
+    }
+  }
+}
+
+/* =========================================================
+   ENT (GARDIEN DE LA FORÊT)
+========================================================= */
+function spawnEnt(){
+  if(ent) return;
+  const ang = rand(0,Math.PI*2);
+  const d = 220;
+  const ex = clamp(player.x+Math.cos(ang)*d, TILE, WORLD_W*TILE-TILE);
+  const ey = clamp(player.y+Math.sin(ang)*d, TILE, OVERWORLD_H*TILE-TILE);
+  ent = {
+    x:ex, y:ey, hp:160, maxHp:160, speed:48,
+    hitCd:0, rootTimer:2.5
+  };
+  pushMsg("⚠️ La forêt gronde... un Ent s'éveille pour se venger !");
+}
+function breakBlockingObject(tx,ty){
+  if(!inBounds(tx,ty)) return;
+  const o = objects[idx(tx,ty)];
+  if(!o) return;
+  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='door'){
+    objects[idx(tx,ty)] = null;
+    spawnParticles(tx*TILE+16,ty*TILE+16,'#5a3a1e',7);
+  }
+}
+function fireEntRoot(){
+  const ang = Math.atan2(player.y-ent.y, player.x-ent.x);
+  projectiles.push({x:ent.x,y:ent.y,vx:Math.cos(ang)*130,vy:Math.sin(ang)*130,life:3,dmg:12,root:true});
+}
+function updateEnt(dt){
+  if(!ent) return;
+  const ang = Math.atan2(player.y-ent.y, player.x-ent.x);
+  const nx = ent.x + Math.cos(ang)*ent.speed*dt;
+  const ny = ent.y + Math.sin(ang)*ent.speed*dt;
+
+  const ntx = Math.floor(nx/TILE), nty = Math.floor(ent.y/TILE);
+  if(tileSolid(ntx,nty)) breakBlockingObject(ntx,nty);
+  if(!tileSolid(ntx,nty)) ent.x = clamp(nx, TILE, WORLD_W*TILE-TILE);
+
+  const mtx = Math.floor(ent.x/TILE), mty = Math.floor(ny/TILE);
+  if(tileSolid(mtx,mty)) breakBlockingObject(mtx,mty);
+  if(!tileSolid(mtx,mty)) ent.y = clamp(ny, TILE, OVERWORLD_H*TILE-TILE);
+
+  ent.hitCd -= dt;
+  const d = dist(ent.x,ent.y,player.x,player.y);
+  if(d < 30 && ent.hitCd<=0){
+    player.hp -= 16; player.hurtFlash = 0.3; ent.hitCd = 1.0;
+    spawnParticles(player.x,player.y,'#5a3a1e',10);
+    if(player.hp<=0) killPlayer("Écrasé par l'Ent");
+  }
+  ent.rootTimer -= dt;
+  if(ent.rootTimer<=0){
+    ent.rootTimer = 3.2;
+    fireEntRoot();
+  }
+}
+function defeatEnt(){
+  spawnParticles(ent.x,ent.y,'#3d8a29',30);
+  const dropCount = randi(3,5);
+  const leftover = addItem('sapling', dropCount);
+  if(leftover>0) spawnDrop(ent.x,ent.y,'sapling',leftover);
+  pushMsg(`🌱 L'Ent est vaincu ! +${dropCount} pousses d'arbre`);
+  ent = null;
+  forestBalance = clamp(4, 0, FOREST_BALANCE_MAX);
+  updateHUD();
+}
+function updateProjectiles(dt){
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p = projectiles[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+    if(dist(p.x,p.y,player.x,player.y) < 14){
+      player.hp -= p.dmg; player.hurtFlash = 0.3;
+      spawnParticles(player.x,player.y, p.root?'#5a3a1e':'#8a5a2a', 6);
+      if(player.hp<=0) killPlayer(p.root?"Transpercé par une racine de l'Ent":"Touché par un fruit lancé par un singe");
+      projectiles.splice(i,1); continue;
+    }
+    if(p.life<=0 || tileSolid(Math.floor(p.x/TILE),Math.floor(p.y/TILE))) projectiles.splice(i,1);
+  }
+}
+function drawEnt(camX,camY){
+  if(!ent) return;
+  const sx = ent.x-camX, sy = ent.y-camY;
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(sx,sy+26,20,7,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#4a2f18'; ctx.fillRect(sx-10, sy-6, 20, 30);
+  ctx.fillStyle = '#2f6b2a';
+  ctx.beginPath(); ctx.arc(sx, sy-14, 20, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#1f4a1a';
+  ctx.beginPath(); ctx.arc(sx-8, sy-20, 12, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx+8, sy-20, 12, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff9d1f';
+  ctx.beginPath(); ctx.arc(sx-5,sy-8,2.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx+5,sy-8,2.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx-20, sy-46, 40, 5);
+  ctx.fillStyle='#7ac142'; ctx.fillRect(sx-20, sy-46, 40*Math.max(0,ent.hp/ent.maxHp), 5);
+}
+function drawProjectiles(camX,camY){
+  for(const p of projectiles){
+    ctx.fillStyle = p.root ? '#5a3a1e' : '#e8963c';
+    ctx.beginPath(); ctx.arc(p.x-camX, p.y-camY, 5, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+/* =========================================================
+   POUSSES D'ARBRE (croissance)
+========================================================= */
+function updateSaplings(dt){
+  for(let i=saplings.length-1;i>=0;i--){
+    const id = saplings[i];
+    const o = objects[id];
+    if(!o || o.type!=='sapling'){ saplings.splice(i,1); continue; }
+    o.growTimer -= dt;
+    if(o.growTimer<=0){
+      objects[id] = {type:'tree', variant:'normal', hp:3, maxHp:3};
+      saplings.splice(i,1);
+      const tx=id%WORLD_W, ty=Math.floor(id/WORLD_W);
+      spawnParticles(tx*TILE+16,ty*TILE+16,'#32962a',10);
+    }
+  }
+}
+
+/* =========================================================
+   TÉLÉPORTATION (entrée/sortie du donjon caché)
+========================================================= */
+function teleportPlayer(tx,ty){
+  player.x = tx*TILE+16; player.y = ty*TILE+16;
+  camera.x = player.x; camera.y = player.y;
+}
+function checkTeleports(){
+  const ptx = Math.floor(player.x/TILE), pty = Math.floor(player.y/TILE);
+  const o = objects[idx(ptx,pty)];
+  if(!o) return;
+  if(o.type==='dungeon2_entrance') enterDungeon2();
+  else if(o.type==='dungeon2_exit') exitDungeon2();
+}
+function enterDungeon2(){
+  teleportPlayer(dungeon2.entryTx, dungeon2.entryTy);
+  inDungeon2 = true;
+  if(!dungeon2.defeated && !dungeon2.sealed){
+    dungeon2.sealed = true;
+    spawnBoss2();
+    pushMsg("⚠️ Une lourde présence vous encercle... la sortie se referme.");
+  } else if(dungeon2.defeated){
+    pushMsg('Vous entrez dans la salle silencieuse.');
+  } else {
+    pushMsg('Le Gardien Lamé vous attend toujours...');
+  }
+}
+function exitDungeon2(){
+  teleportPlayer(dungeon2.entranceTx, dungeon2.entranceTy-1);
+  inDungeon2 = false;
+  pushMsg('Vous ressortez à la lumière du jour.');
+}
+
+/* =========================================================
+   BOSS : LE GARDIEN LAMÉ
+========================================================= */
+function spawnBoss2(){
+  dungeon2.boss = {
+    x:(dungeon2.ox+dungeon2.w/2)*TILE+16, y:(dungeon2.oy+3)*TILE+16,
+    hp:520, maxHp:520, speed:56,
+    hitCd:0,
+    mode:'chase', modeTimer:0,
+    nextSpecialTimer: rand(3.5,5),
+    slashDir:{dx:0,dy:1}, slashHitDone:false,
+    spinHitCd:0
+  };
+  document.getElementById('bossBarWrap').style.display = 'flex';
+  document.getElementById('bossName').textContent = 'LE GARDIEN LAMÉ';
+  document.getElementById('bossBarFill').style.width = '100%';
+  pushMsg('⚔️ Le Gardien Lamé dégaine ses lames !');
+}
+function updateBoss2(dt){
+  if(!dungeon2 || !dungeon2.boss) return;
+  const b = dungeon2.boss;
+
+  if(b.mode==='chase'){
+    const d = dist(b.x,b.y,player.x,player.y);
+    const ang = Math.atan2(player.y-b.y, player.x-b.x);
+    const nx = b.x+Math.cos(ang)*b.speed*dt;
+    const ny = b.y+Math.sin(ang)*b.speed*dt;
+    if(!tileSolid(Math.floor(nx/TILE),Math.floor(b.y/TILE))) b.x = nx;
+    if(!tileSolid(Math.floor(b.x/TILE),Math.floor(ny/TILE))) b.y = ny;
+
+    b.hitCd -= dt;
+    if(d<28 && b.hitCd<=0){
+      player.hp -= 14; player.hurtFlash = 0.3; b.hitCd = 0.9;
+      spawnParticles(player.x,player.y,'#7ecbff',9);
+      if(player.hp<=0) killPlayer('Tranché par le Gardien Lamé');
+    }
+
+    b.nextSpecialTimer -= dt;
+    if(b.nextSpecialTimer<=0){
+      if(Math.random()<0.5){
+        b.mode='telegraphSlash'; b.modeTimer=0.6;
+        b.slashDir = {dx:Math.cos(ang), dy:Math.sin(ang)};
+        b.slashHitDone = false;
+      } else {
+        b.mode='telegraphSpin'; b.modeTimer=0.5;
+      }
+    }
+  }
+  else if(b.mode==='telegraphSlash'){
+    b.modeTimer -= dt;
+    if(b.modeTimer<=0){ b.mode='slash'; b.modeTimer=0.4; }
+  }
+  else if(b.mode==='slash'){
+    b.modeTimer -= dt;
+    const dashSpeed = 380;
+    const nx = b.x + b.slashDir.dx*dashSpeed*dt;
+    const ny = b.y + b.slashDir.dy*dashSpeed*dt;
+    if(!tileSolid(Math.floor(nx/TILE),Math.floor(b.y/TILE))) b.x = nx;
+    if(!tileSolid(Math.floor(b.x/TILE),Math.floor(ny/TILE))) b.y = ny;
+    if(!b.slashHitDone){
+      const toPx = player.x-b.x, toPy = player.y-b.y;
+      const along = toPx*b.slashDir.dx + toPy*b.slashDir.dy;
+      const perp = Math.abs(toPx*(-b.slashDir.dy) + toPy*b.slashDir.dx);
+      if(along>-10 && along<60 && perp<26){
+        player.hp -= 24; player.hurtFlash = 0.3; player.staggerTimer = 1.1;
+        spawnParticles(player.x,player.y,'#7ecbff',12);
+        b.slashHitDone = true;
+        pushMsg('Vous êtes frappé de plein fouet et déséquilibré !');
+        if(player.hp<=0) killPlayer('Frappé par la lame du Gardien');
+      }
+    }
+    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(4,6); }
+  }
+  else if(b.mode==='telegraphSpin'){
+    b.modeTimer -= dt;
+    if(b.modeTimer<=0){ b.mode='spin'; b.modeTimer=1.8; b.spinHitCd=0; }
+  }
+  else if(b.mode==='spin'){
+    b.modeTimer -= dt;
+    b.spinHitCd -= dt;
+    const d = dist(b.x,b.y,player.x,player.y);
+    if(d<75 && b.spinHitCd<=0){
+      player.hp -= 9; player.hurtFlash = 0.3; b.spinHitCd = 0.35;
+      spawnParticles(player.x,player.y,'#7ecbff',6);
+      if(player.hp<=0) killPlayer('Déchiqueté par la lame tourbillonnante');
+    }
+    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(4,6); }
+  }
+
+  document.getElementById('bossBarFill').style.width = Math.max(0,b.hp/b.maxHp*100)+'%';
+  if(b.hp<=0) defeatBoss2();
+}
+function defeatBoss2(){
+  const b = dungeon2.boss;
+  spawnParticles(b.x,b.y,'#7ecbff',34);
+  dungeon2.boss = null;
+  dungeon2.defeated = true;
+  dungeon2.sealed = false;
+  objects[idx(dungeon2.exitTx,dungeon2.exitTy)] = {type:'dungeon2_exit'};
+  document.getElementById('bossBarWrap').style.display = 'none';
+  pushMsg('🏆 Le Gardien Lamé est vaincu ! Une ouverture apparaît derrière lui.');
+  const leftover = addItem('gem',1);
+  if(leftover>0) spawnDrop(b.x,b.y,'gem',leftover);
+  pushMsg('💎 Une gemme mystérieuse tombe au sol.');
+  updateHUD();
+}
+function drawBoss2(camX,camY){
+  if(!dungeon2 || !dungeon2.boss) return;
+  const b = dungeon2.boss;
+  const sx = b.x-camX, sy = b.y-camY;
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx,sy+24,22,7,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = (b.mode==='spin') ? '#3a2050' : '#241a30';
+  ctx.beginPath(); ctx.ellipse(sx,sy,22,28,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#150e1c';
+  ctx.beginPath(); ctx.ellipse(sx,sy-8,15,14,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = (b.mode==='slash'||b.mode==='telegraphSlash') ? '#ff5a3c' : '#7ecbff';
+  ctx.beginPath(); ctx.arc(sx-5,sy-9,2.6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx+5,sy-9,2.6,0,Math.PI*2); ctx.fill();
+
+  if(b.mode==='spin'){
+    const rot = performance.now()/70;
+    ctx.strokeStyle='rgba(126,203,255,0.85)'; ctx.lineWidth=3;
+    for(let i=0;i<3;i++){
+      const a = rot + i*(Math.PI*2/3);
+      ctx.beginPath();
+      ctx.moveTo(sx+Math.cos(a)*20, sy+Math.sin(a)*20);
+      ctx.lineTo(sx+Math.cos(a)*72, sy+Math.sin(a)*72);
+      ctx.stroke();
+    }
+  }
+  if(b.mode==='telegraphSpin'){
+    ctx.strokeStyle='rgba(255,90,60,0.6)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(sx,sy,75,0,Math.PI*2); ctx.stroke();
+  }
+  if(b.mode==='telegraphSlash'){
+    ctx.strokeStyle='rgba(255,90,60,0.75)'; ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(sx,sy);
+    ctx.lineTo(sx+b.slashDir.dx*150, sy+b.slashDir.dy*150);
+    ctx.stroke();
+  }
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx-22, sy-46, 44, 5);
+  ctx.fillStyle='#7ecbff'; ctx.fillRect(sx-22, sy-46, 44*Math.max(0,b.hp/b.maxHp), 5);
+}
+
+/* =========================================================
+   ANIMAUX
+========================================================= */
+function moveAnimal(a, ang, sp, dt){
+  const cosA = Math.cos(ang);
+  if(cosA > 0.05) a.faceDir = 1;
+  else if(cosA < -0.05) a.faceDir = -1;
+  const nx = a.x + cosA*sp*dt;
+  const ny = a.y + Math.sin(ang)*sp*dt;
+  if(!tileSolid(Math.floor(nx/TILE), Math.floor(a.y/TILE))) a.x = clamp(nx,TILE,WORLD_W*TILE-TILE);
+  if(!tileSolid(Math.floor(a.x/TILE), Math.floor(ny/TILE))) a.y = clamp(ny,TILE,OVERWORLD_H*TILE-TILE);
+}
+function wanderAnimal(a, dt){
+  a.wanderT -= dt;
+  if(a.wanderT<=0){ a.wanderAngle = rand(0,Math.PI*2); a.wanderT = rand(1.5,3.5); }
+  moveAnimal(a, a.wanderAngle, a.speed*0.4, dt);
+}
+
+// Vole un objet dans l'inventaire du joueur (utilisé par le renard et le singe).
+function stealFromPlayer(a){
+  const stealables = [];
+  for(let i=0;i<player.slots.length;i++){
+    const s = player.slots[i];
+    if(s && ITEM_DEFS[s.id].cat!=='tool') stealables.push(i);
+  }
+  if(stealables.length===0) return false;
+  const i = stealables[randi(0,stealables.length-1)];
+  const s = player.slots[i];
+  const label = ITEM_DEFS[s.id].name;
+  s.count -= 1;
+  if(s.count<=0) player.slots[i] = null;
+  const kindLabel = ANIMAL_LABELS[a.kind] || 'Animal';
+  pushMsg(`${kindLabel} a volé : ${label} !`);
+  updateHUD();
+  return true;
+}
+
+function updateAnimals(dt){
+  for(let ai=animals.length-1; ai>=0; ai--){
+    const a = animals[ai];
+
+    // Les animaux trop éloignés du joueur disparaissent (au-delà de ANIMAL_DESPAWN_DIST_TILES blocs).
+    if(dist(a.x,a.y,player.x,player.y) > ANIMAL_DESPAWN_DIST_PX){
+      animals.splice(ai,1);
+      continue;
+    }
+
+    if(a.fleeTimer>0) a.fleeTimer -= dt;
+    if(a.provokeTimer>0){ a.provokeTimer -= dt; if(a.provokeTimer<=0) a.provoked=false; }
+    if(a.stealCd>0) a.stealCd -= dt;
+    if(a.throwCd>0) a.throwCd -= dt;
+    const dToPlayer = dist(a.x,a.y,player.x,player.y);
+
+    // Grenouille : totalement inoffensive, sautille aléatoirement et fuit un peu si on l'attaque.
+    if(a.harmless){
+      if(a.fleeTimer>0){
+        moveAnimal(a, Math.atan2(a.y-player.y, a.x-player.x), a.speed*1.4, dt);
+      } else {
+        wanderAnimal(a, dt);
+      }
+      continue;
+    }
+
+    // Crocodile : embuscade. Reste immobile et quasi invisible (submergé) tant
+    // que le joueur n'est pas à portée, puis surgit avec une pointe de vitesse.
+    if(a.ambush){
+      if(a.submerged){
+        if(dToPlayer < a.aggroRange*0.55){
+          a.submerged = false; a.burstTimer = 2.2;
+          pushMsg('Un crocodile surgit de l\'eau !');
+        }
+      } else {
+        if(a.burstTimer>0){
+          moveAnimal(a, Math.atan2(player.y-a.y, player.x-a.x), a.speed, dt);
+          a.burstTimer -= dt;
+          a.hitCd -= dt;
+          if(dToPlayer < 22 && a.hitCd<=0){
+            player.hp -= a.dmg; player.hurtFlash = 0.3; a.hitCd = 1.0;
+            spawnParticles(player.x,player.y,'#e74c3c',8);
+            if(player.hp<=0) killPlayer('Mordu par un crocodile');
+          }
+          if(dToPlayer > a.aggroRange*1.4) a.burstTimer = 0;
+        } else {
+          // replonge et retourne se tapir près de son point d'origine
+          moveAnimal(a, Math.atan2(a.homeY-a.y, a.homeX-a.x), a.speed*0.5, dt);
+          if(dist(a.x,a.y,a.homeX,a.homeY) < 12) a.submerged = true;
+        }
+      }
+      continue;
+    }
+
+    // Ours : territorial. Ne poursuit que si le joueur entre dans sa zone
+    // d'aggro ET reste proche de son territoire ; sinon rentre chez lui.
+    if(a.territorial){
+      const distHome = dist(a.x,a.y,a.homeX,a.homeY);
+      const shouldChase = (a.provoked || dToPlayer < a.aggroRange) && dist(player.x,player.y,a.homeX,a.homeY) < a.leashRange;
+      if(shouldChase){
+        moveAnimal(a, Math.atan2(player.y-a.y, player.x-a.x), a.speed, dt);
+        a.hitCd -= dt;
+        if(dToPlayer < 26 && a.hitCd<=0){
+          player.hp -= a.dmg; player.hurtFlash = 0.3; a.hitCd = 1.1;
+          spawnParticles(player.x,player.y,'#e74c3c',9);
+          if(player.hp<=0) killPlayer('Assommé par un ours');
+        }
+      } else if(distHome > 20){
+        moveAnimal(a, Math.atan2(a.homeY-a.y, a.homeX-a.x), a.speed*0.7, dt);
+      } else {
+        wanderAnimal(a, dt);
+      }
+      continue;
+    }
+
+    // Scorpion : hostile en permanence, comme avant.
+    if(a.hostile){
+      if(dToPlayer < a.aggroRange){
+        moveAnimal(a, Math.atan2(player.y-a.y, player.x-a.x), a.speed, dt);
+      } else {
+        wanderAnimal(a, dt);
+      }
+      a.hitCd -= dt;
+      if(dToPlayer < 20 && a.hitCd<=0){
+        player.hp -= a.dmg; player.hurtFlash = 0.3; a.hitCd = 1.0;
+        spawnParticles(player.x,player.y,'#e74c3c',8);
+        if(player.hp<=0) killPlayer('Piqué par un scorpion');
+      }
+      continue;
+    }
+
+    // Loups : ne s'en prennent au joueur QUE s'ils ont été provoqués (attaqués),
+    // et chassent alors en meute. Sinon, ils traquent les autres animaux pour se nourrir.
+    if(a.predator){
+      if(a.provoked && dToPlayer < 340){
+        moveAnimal(a, Math.atan2(player.y-a.y, player.x-a.x), a.speed, dt);
+        a.hitCd -= dt;
+        if(dToPlayer < 20 && a.hitCd<=0){
+          player.hp -= a.dmg; player.hurtFlash = 0.3; a.hitCd = 1.0;
+          spawnParticles(player.x,player.y,'#e74c3c',8);
+          if(player.hp<=0) killPlayer('Dévoré par un loup');
+        }
+        continue;
+      }
+      if(!a.huntTarget || a.huntTarget.hp<=0 || !animals.includes(a.huntTarget)){
+        let best=null, bestD=240;
+        for(const p of animals){
+          if(!p.prey) continue;
+          const dd = dist(a.x,a.y,p.x,p.y);
+          if(dd<bestD){ bestD=dd; best=p; }
+        }
+        a.huntTarget = best;
+      }
+      if(a.huntTarget){
+        const t = a.huntTarget;
+        moveAnimal(a, Math.atan2(t.y-a.y, t.x-a.x), a.speed, dt);
+        a.hitCd -= dt;
+        if(dist(a.x,a.y,t.x,t.y) < 18 && a.hitCd<=0){
+          t.hp -= 10; a.hitCd = 0.6;
+          spawnParticles(t.x,t.y,'#7a3b2e',5);
+          if(t.hp<=0){
+            spawnParticles(t.x,t.y,'#4a1010',10);
+            const ti = animals.indexOf(t);
+            if(ti>=0) animals.splice(ti,1);
+            a.huntTarget = null;
+          }
+        }
+      } else {
+        wanderAnimal(a, dt);
+      }
+      continue;
+    }
+
+    // Singe : voleur à distance. Reste dans la jungle, jette occasionnellement
+    // un fruit sur le joueur, et s'approche pour tenter un vol furtif.
+    if(a.thief && a.ranged){
+      if(dToPlayer < 260){
+        if(a.throwCd<=0 && dToPlayer > 60){
+          a.throwCd = rand(2.5,4);
+          const ang = Math.atan2(player.y-a.y, player.x-a.x);
+          projectiles.push({x:a.x,y:a.y,vx:Math.cos(ang)*170,vy:Math.sin(ang)*170,life:2,dmg:4,root:false});
+        }
+        if(dToPlayer < 60 && a.stealCd<=0){
+          if(stealFromPlayer(a)){
+            a.stealCd = 8;
+            a.fleeTimer = 3;
+          }
+        }
+        if(a.fleeTimer>0){
+          moveAnimal(a, Math.atan2(a.y-player.y, a.x-player.x), a.speed*1.3, dt);
+        } else if(dToPlayer < 60){
+          wanderAnimal(a, dt);
+        } else {
+          moveAnimal(a, Math.atan2(player.y-a.y, player.x-a.x), a.speed*0.6, dt);
+        }
+      } else {
+        wanderAnimal(a, dt);
+      }
+      continue;
+    }
+
+    // Renard : voleur furtif et peureux. S'approche des objets au sol du
+    // joueur pour voler dans son inventaire s'il s'attarde à proximité, puis
+    // détale à toute vitesse.
+    if(a.thief){
+      if(a.fleeTimer>0){
+        moveAnimal(a, Math.atan2(a.y-player.y, a.x-player.x), a.speed*1.5, dt);
+        continue;
+      }
+      if(dToPlayer < 50 && a.stealCd<=0 && Math.random()<0.5){
+        if(stealFromPlayer(a)){
+          a.stealCd = 12;
+          a.fleeTimer = 4;
+          continue;
+        }
+      }
+      if(dToPlayer < 90){
+        // rôde discrètement autour du joueur
+        const ang = Math.atan2(a.y-player.y, a.x-player.x) + Math.PI/2;
+        moveAnimal(a, ang, a.speed*0.5, dt);
+      } else {
+        wanderAnimal(a, dt);
+      }
+      continue;
+    }
+
+    // Proies non hostiles (lapin, sanglier, cerf, chèvre) : fuient le joueur
+    // (s'il attaque ou s'approche pour les peureux) et fuient aussi les
+    // prédateurs (loups, ours provoqués) à proximité.
+    let threatX=null, threatY=null, threatD=Infinity;
+    if(a.fleeTimer>0 || (a.skittish && dToPlayer<140)){ threatX=player.x; threatY=player.y; threatD=dToPlayer; }
+    for(const w of animals){
+      if(!w.predator && !(w.territorial && w.provoked)) continue;
+      const dd = dist(a.x,a.y,w.x,w.y);
+      if(dd<170 && dd<threatD){ threatX=w.x; threatY=w.y; threatD=dd; }
+    }
+    if(threatX!==null){
+      moveAnimal(a, Math.atan2(a.y-threatY, a.x-threatX), a.speed*1.6, dt);
+    } else {
+      wanderAnimal(a, dt);
+    }
+  }
+
+  // Aucune faune ne doit réapparaître tant que le joueur est dans le donjon
+  // caché : il n'y a là-bas aucune case de biome valide, donc spawnAnimal
+  // échouerait indéfiniment. Une boucle "while" sans limite sur une
+  // condition qui ne peut jamais devenir vraie gèlerait l'onglet (c'était
+  // la cause du plantage). On protège aussi par un nombre maximal de
+  // tentatives par frame, par sécurité, même hors du donjon.
+  if(!inDungeon2){
+    const preyPool = ['rabbit','rabbit','boar','deer','goat'];
+    let preyAttempts = 0;
+    while (animals.filter(a => a.prey && !a.thief).length < 22 && preyAttempts < 40) {
+      spawnAnimal(preyPool[randi(0, preyPool.length - 1)]);
+      preyAttempts++;
+    }
+    if(animals.filter(a=>a.kind==='scorpion').length < 5 && Math.random()<dt*1.5){
+      spawnAnimal('scorpion');
+    }
+    if(animals.filter(a=>a.predator).length < 10 && Math.random() < dt*2){
+      spawnWolfPack(randi(2,3));
+    }
+    if(animals.filter(a=>a.thief).length < 8 && Math.random() < dt*1.2){
+      spawnAnimal(Math.random()<0.5 ? 'fox' : 'monkey');
+    }
+    if(animals.filter(a=>a.territorial).length < 4 && Math.random() < dt*0.6){
+      spawnAnimal('bear');
+    }
+    if(animals.filter(a=>a.ambush).length < 5 && Math.random() < dt*1.0){
+      spawnAnimal('crocodile');
+    }
+    if(animals.filter(a=>a.harmless).length < 8 && Math.random() < dt*1.0){
+      spawnAnimal('frog');
+    }
+  }
+}
+
+function killPlayer(reason){
+  gameOver = true;
+  document.getElementById('deathReason').textContent = reason || '';
+  document.getElementById('deathScreen').style.display = 'flex';
+}
+
+/* =========================================================
+   JOUEUR
+========================================================= */
+function updatePlayer(dt){
+  let mx=0,my=0;
+  if(keys['z']||keys['arrowup']){ my-=1; player.facing='up'; }
+  if(keys['s']||keys['arrowdown']){ my+=1; player.facing='down'; }
+  if(keys['q']||keys['arrowleft']){ mx-=1; player.facing='left'; }
+  if(keys['d']||keys['arrowright']){ mx+=1; player.facing='right'; }
+  if(mx!==0 && my!==0){ mx*=0.7071; my*=0.7071; }
+
+  if(player.staggerTimer>0) player.staggerTimer -= dt;
+  const spdMult = player.staggerTimer>0 ? 0.35 : 1;
+
+  const nx = player.x + mx*player.speed*spdMult*dt;
+  const ny = player.y + my*player.speed*spdMult*dt;
+  if(!tileSolid(Math.floor(nx/TILE), Math.floor(player.y/TILE))) player.x = nx;
+  if(!tileSolid(Math.floor(player.x/TILE), Math.floor(ny/TILE))) player.y = ny;
+  player.x = clamp(player.x, TILE, WORLD_W*TILE-TILE);
+  if(inDungeon2){
+    player.y = clamp(player.y, BACKSTAGE_Y*TILE, WORLD_H*TILE-TILE);
+  } else {
+    player.y = clamp(player.y, TILE, OVERWORLD_H*TILE-TILE);
+  }
+
+  if(mx!==0 || my!==0) checkTeleports();
+
+  if(ent && !inDungeon2){
+    const ELEASH = 300;
+    const de = dist(player.x,player.y,ent.x,ent.y);
+    if(de > ELEASH){
+      const eang = Math.atan2(player.y-ent.y, player.x-ent.x);
+      player.x = ent.x + Math.cos(eang)*ELEASH;
+      player.y = ent.y + Math.sin(eang)*ELEASH;
+      if(!(ent.leashMsgCd>0)) pushMsg("Les racines de l'Ent vous retiennent, impossible de fuir !");
+      ent.leashMsgCd = 3;
+    }
+    if(ent.leashMsgCd>0) ent.leashMsgCd -= dt;
+  }
+
+  player.hunger -= dt*0.55;
+  if(player.hunger<=0){ player.hunger=0; player.hp -= dt*3; }
+  if(player.hp<=0){ player.hp=0; killPlayer('Mort de faim'); }
+  if(player.hurtFlash>0) player.hurtFlash -= dt;
+
+  camera.x += (player.x-camera.x)*Math.min(1,dt*8);
+  camera.y += (player.y-camera.y)*Math.min(1,dt*8);
+
+  clampCameraToDungeon();
+}
+
+// Empêche la caméra de sortir de la salle du boss : même sur un très grand
+// écran (« dézoom »), le joueur ne voit jamais plus que la taille de l'arène.
+function clampCameraToDungeon(){
+  if(!inDungeon2 || !dungeon2) return;
+  const axMin = dungeon2.ox*TILE, axMax = (dungeon2.ox+dungeon2.w)*TILE;
+  const ayMin = dungeon2.oy*TILE, ayMax = (dungeon2.oy+dungeon2.h)*TILE;
+  const arenaPxW = axMax-axMin, arenaPxH = ayMax-ayMin;
+
+  if(arenaPxW <= W){
+    camera.x = (axMin+axMax)/2;
+  } else {
+    camera.x = clamp(camera.x, axMin+W/2, axMax-W/2);
+  }
+  if(arenaPxH <= H){
+    camera.y = (ayMin+ayMax)/2;
+  } else {
+    camera.y = clamp(camera.y, ayMin+H/2, ayMax-H/2);
+  }
+}
+
+/* =========================================================
+   RENDU
+========================================================= */
+function tileColor(t, b){
+  if(t===TILE_TYPES.GRASS){
+    switch(b){
+      case 'forest': return '#2f6b2a';
+      case 'desert': return '#d9c07a';
+      case 'snow': return '#e8eef2';
+      case 'swamp': return '#4a5c3a';
+      case 'jungle': return '#1f6b3a';
+      case 'mountain': return '#8a9088';
+      default: return '#4f8a3d';
+    }
+  }
+  switch(t){
+    case TILE_TYPES.WATER: return '#2a6f97';
+    case TILE_TYPES.SAND: return '#d9b877';
+    case TILE_TYPES.ROCKFLOOR:
+      if(b==='snow') return '#aab5be';
+      if(b==='mountain') return '#7d7d78';
+      if(b==='dungeon2') return '#241f30';
+      return '#8a8577';
+  }
+}
+
+// Dessine un câble ou une minuterie situé sur la couche cachée. N'est appelé
+// que lorsque la case ne contient AUCUN objet visible au-dessus : dès qu'un
+// mur, un arbre, un rocher ou tout autre objet est posé par-dessus, le
+// câble/minuterie reste totalement invisible mais continue de conduire.
+function drawWireTile(tx,ty,w,camX,camY){
+  const sx = tx*TILE - camX, sy = ty*TILE - camY;
+  const cx = sx+TILE/2, cy = sy+TILE/2;
+  if(w.kind==='wire'){
+    ctx.fillStyle = w.powered ? '#ff5a3c' : '#5a2a20';
+    ctx.beginPath(); ctx.arc(cx,cy,4,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = w.powered ? 'rgba(255,90,60,0.6)' : 'rgba(90,42,32,0.4)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sx+4,cy); ctx.lineTo(sx+TILE-4,cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx,sy+4); ctx.lineTo(cx,sy+TILE-4); ctx.stroke();
+  } else if(w.kind==='timer'){
+    const active = w.outputOn;
+    ctx.fillStyle = active ? '#ffd23f' : (w.charging ? '#e8963c' : '#3a2a20');
+    ctx.fillRect(sx+6,sy+6,TILE-12,TILE-12);
+    ctx.strokeStyle = '#1a1008'; ctx.lineWidth=2;
+    ctx.strokeRect(sx+6,sy+6,TILE-12,TILE-12);
+    ctx.strokeStyle = active ? '#fff' : '#c9a06a';
+    ctx.lineWidth = 2;
+    const ax = cx - w.dir.dx*9, ay = cy - w.dir.dy*9;
+    const bx = cx + w.dir.dx*9, by = cy + w.dir.dy*9;
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx,by);
+    ctx.lineTo(bx - w.dir.dx*4 - w.dir.dy*4, by - w.dir.dy*4 + w.dir.dx*4);
+    ctx.lineTo(bx - w.dir.dx*4 + w.dir.dy*4, by - w.dir.dy*4 - w.dir.dx*4);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+function draw(){
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#111'; ctx.fillRect(0,0,W,H);
+
+  const camX = camera.x - W/2, camY = camera.y - H/2;
+  const startTx = Math.floor(camX/TILE)-1, endTx = Math.ceil((camX+W)/TILE)+1;
+  const startTy = Math.floor(camY/TILE)-1, endTy = Math.ceil((camY+H)/TILE)+1;
+
+  for(let ty=startTy; ty<=endTy; ty++){
+    for(let tx=startTx; tx<=endTx; tx++){
+      if(!inBounds(tx,ty)) continue;
+      const sx = tx*TILE - camX, sy = ty*TILE - camY;
+      const t = tiles[idx(tx,ty)];
+      const b = biome[idx(tx,ty)];
+      ctx.fillStyle = tileColor(t,b);
+      ctx.fillRect(sx,sy,TILE,TILE);
+      if(t===TILE_TYPES.GRASS && (tx*31+ty*17)%7===0){
+        ctx.fillStyle = b==='snow' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.06)';
+        ctx.fillRect(sx+4,sy+6,4,4);
+      }
+      if(t===TILE_TYPES.WATER){
+        ctx.fillStyle='rgba(255,255,255,0.08)';
+        const wob = Math.sin(performance.now()/500 + tx*0.6 + ty*0.4)*2;
+        ctx.fillRect(sx+4, sy+14+wob, TILE-8, 3);
+      }
+    }
+  }
+
+  // Câbles / minuteries cachés : dessinés sous les objets. Une case qui a un
+  // objet au-dessus (mur, arbre, rocher...) ne montre RIEN ici : le fil reste
+  // invisible tout en continuant à conduire le courant.
+  for(let ty=startTy; ty<=endTy; ty++){
+    for(let tx=startTx; tx<=endTx; tx++){
+      if(!inBounds(tx,ty)) continue;
+      if(objects[idx(tx,ty)]) continue;
+      const w = wires[idx(tx,ty)];
+      if(w) drawWireTile(tx,ty,w,camX,camY);
+    }
+  }
+
+  const visibleObjs = [];
+  for(let ty=startTy; ty<=endTy; ty++){
+    for(let tx=startTx; tx<=endTx; tx++){
+      if(!inBounds(tx,ty)) continue;
+      const o = objects[idx(tx,ty)];
+      if(o) visibleObjs.push({tx,ty,o});
+    }
+  }
+  visibleObjs.sort((a,b)=>a.ty-b.ty);
+  for(const {tx,ty,o} of visibleObjs) drawObject(tx,ty,o,camX,camY);
+
+  drawDrops(camX,camY);
+
+  for(const p of particles){
+    ctx.globalAlpha = Math.max(0,p.life/0.6);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x-camX-2, p.y-camY-2, 4,4);
+    ctx.globalAlpha = 1;
+  }
+
+  for(const a of animals) drawAnimal(a,camX,camY);
+  for(const z of zombies) drawZombie(z,camX,camY);
+  drawEnt(camX,camY);
+  drawBoss2(camX,camY);
+  drawProjectiles(camX,camY);
+  drawPlayer(camX,camY);
+  drawNightOverlay(camX,camY);
+  drawVisionLimit(camX,camY);
+}
+
+function drawObject(tx,ty,o,camX,camY){
+  const sx = tx*TILE - camX, sy = ty*TILE - camY;
+  const cx = sx+TILE/2, cy = sy+TILE/2;
+  if(o.type==='tree'){
+    if(o.variant==='cactus'){
+      ctx.fillStyle = '#3d8a29';
+      ctx.fillRect(cx-4, sy+6, 8, 24);
+      ctx.fillRect(cx-10, sy+14, 6, 10);
+      ctx.fillRect(cx+4, sy+9, 6, 12);
+      ctx.fillStyle = '#2e6b1f';
+      for(let i=0;i<4;i++) ctx.fillRect(cx-4, sy+9+i*5, 8, 1);
+    } else if(o.variant==='pine'){
+      ctx.fillStyle = '#3a2a18'; ctx.fillRect(cx-3, sy+20, 6, 10);
+      ctx.fillStyle = '#1f4a30';
+      ctx.beginPath(); ctx.moveTo(cx,sy+2); ctx.lineTo(cx-13,sy+24); ctx.lineTo(cx+13,sy+24); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2c5c3c';
+      ctx.beginPath(); ctx.moveTo(cx,sy+8); ctx.lineTo(cx-10,sy+22); ctx.lineTo(cx+10,sy+22); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fdfdfd';
+      ctx.beginPath(); ctx.moveTo(cx,sy+2); ctx.lineTo(cx-4,sy+9); ctx.lineTo(cx+4,sy+9); ctx.closePath(); ctx.fill();
+    } else if(o.variant==='jungle'){
+      ctx.fillStyle = '#3a2712'; ctx.fillRect(cx-5, sy+16, 10, 16);
+      ctx.fillStyle = '#0f5a2a';
+      ctx.beginPath(); ctx.ellipse(cx-9, sy+10, 11, 6, -0.4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx+9, sy+9, 11, 6, 0.4, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#1e8a45';
+      ctx.beginPath(); ctx.ellipse(cx, sy+5, 13, 8, 0, 0, Math.PI*2); ctx.fill();
+    } else if(o.variant==='mangrove'){
+      ctx.strokeStyle = '#3e2712'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(cx-8,sy+28); ctx.lineTo(cx-3,sy+16); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+8,sy+28); ctx.lineTo(cx+3,sy+16); ctx.stroke();
+      ctx.fillStyle = '#4a6b3a';
+      ctx.beginPath(); ctx.arc(cx, sy+11, 13, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3a5a2e';
+      ctx.beginPath(); ctx.arc(cx-5, sy+7, 8, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#4a2f18'; ctx.fillRect(cx-4, sy+18, 8, 14);
+      ctx.fillStyle = '#346429'; ctx.beginPath(); ctx.arc(cx, sy+14, 15, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#32962a'; ctx.beginPath(); ctx.arc(cx-5, sy+9, 10, 0, Math.PI*2); ctx.fill();
+    }
+  } else if(o.type==='rock'){
+    ctx.fillStyle = '#6d6d6d';
+    ctx.beginPath(); ctx.moveTo(cx-13,cy+9); ctx.lineTo(cx-9,cy-9); ctx.lineTo(cx+4,cy-13);
+    ctx.lineTo(cx+13,cy-2); ctx.lineTo(cx+10,cy+11); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#8f8f8f';
+    ctx.beginPath(); ctx.moveTo(cx-9,cy-9); ctx.lineTo(cx+4,cy-13); ctx.lineTo(cx+2,cy-3); ctx.closePath(); ctx.fill();
+  } else if(o.type==='bush'){
+    ctx.fillStyle = '#2e6b1f'; ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.fill();
+    if(o.berries){ ctx.fillStyle = '#c0392b'; [[-4,-2],[4,1],[0,5]].forEach(([dx,dy])=>{ ctx.beginPath(); ctx.arc(cx+dx,cy+dy,2.4,0,Math.PI*2); ctx.fill(); }); }
+  } else if(o.type==='wall'){
+    ctx.fillStyle = '#7a5230'; ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6);
+    ctx.strokeStyle = '#3e2712'; ctx.lineWidth=2; ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
+  } else if(o.type==='campfire'){
+    ctx.fillStyle = '#3e2712'; ctx.fillRect(cx-9,cy+4,18,4);
+    const flick = 3+Math.sin(performance.now()/120)*2;
+    ctx.fillStyle = '#ff9d1f';
+    ctx.beginPath(); ctx.moveTo(cx,cy-14-flick); ctx.lineTo(cx+7,cy+4); ctx.lineTo(cx-7,cy+4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffd23f';
+    ctx.beginPath(); ctx.moveTo(cx,cy-7); ctx.lineTo(cx+3,cy+4); ctx.lineTo(cx-3,cy+4); ctx.closePath(); ctx.fill();
+  } else if(o.type==='lever'){
+    ctx.fillStyle = '#5a5a5a'; ctx.fillRect(cx-8,cy+4,16,6);
+    ctx.strokeStyle = o.on ? '#ff5a3c' : '#cfcfcf'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(cx,cy+6); ctx.lineTo(cx + (o.on?8:-8), cy-9); ctx.stroke();
+    ctx.fillStyle = o.on ? '#ff5a3c' : '#888';
+    ctx.beginPath(); ctx.arc(cx + (o.on?8:-8), cy-9, 3, 0, Math.PI*2); ctx.fill();
+  } else if(o.type==='plate'){
+    ctx.fillStyle = o.active ? '#c99a3a' : '#8a6a34';
+    ctx.fillRect(sx+5,sy+5,TILE-10,TILE-10);
+    ctx.strokeStyle = '#3e2712'; ctx.lineWidth=2;
+    ctx.strokeRect(sx+5,sy+5,TILE-10,TILE-10);
+  } else if(o.type==='door'){
+    ctx.fillStyle = '#7a5230';
+    if(o.open){ ctx.fillRect(sx+2,sy+3,6,TILE-6); }
+    else { ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6); ctx.strokeStyle='#3e2712'; ctx.lineWidth=2; ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6); }
+    ctx.fillStyle = o.open ? '#7ac142' : '#c0392b';
+    ctx.beginPath(); ctx.arc(sx+4,cy,2,0,Math.PI*2); ctx.fill();
+  } else if(o.type==='piston'){
+    ctx.fillStyle = '#6d6d6d'; ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6);
+    ctx.strokeStyle = '#3e2712'; ctx.lineWidth=2; ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
+    const hx = o.dir.dx*(o.extended?12:4), hy = o.dir.dy*(o.extended?12:4);
+    ctx.fillStyle = '#a68a5a';
+    ctx.fillRect(cx+hx-4, cy+hy-4, 8, 8);
+  } else if(o.type==='sapling'){
+    ctx.fillStyle = '#3e2712'; ctx.fillRect(cx-2, sy+22, 4, 7);
+    ctx.fillStyle = '#4caf3f';
+    ctx.beginPath(); ctx.ellipse(cx-4, sy+18, 5, 7, -0.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx+4, sy+18, 5, 7, 0.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#6fcf5a';
+    ctx.beginPath(); ctx.ellipse(cx, sy+13, 4, 6, 0, 0, Math.PI*2); ctx.fill();
+  } else if(o.type==='dungeon2_wall'){
+    ctx.fillStyle = '#241a30'; ctx.fillRect(sx,sy,TILE,TILE);
+    ctx.strokeStyle = '#3a2a50'; ctx.lineWidth=2; ctx.strokeRect(sx+2,sy+2,TILE-4,TILE-4);
+    ctx.fillStyle = 'rgba(126,203,255,0.35)';
+    ctx.fillRect(cx-2,sy+6,4,TILE-12);
+  } else if(o.type==='dungeon2_entrance'){
+    ctx.fillStyle = '#6b6b5a';
+    ctx.beginPath(); ctx.ellipse(cx,cy+5,13,8,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#54544a';
+    ctx.beginPath(); ctx.ellipse(cx,cy+5,9,5,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(126,203,255,0.45)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(cx,cy+5,13,8,0,0,Math.PI*2); ctx.stroke();
+    const pulse = 3+Math.sin(performance.now()/500)*1.5;
+    ctx.fillStyle = 'rgba(126,203,255,0.4)';
+    ctx.beginPath(); ctx.arc(cx,cy+5,pulse,0,Math.PI*2); ctx.fill();
+  } else if(o.type==='dungeon2_exit'){
+    const pulse2 = Math.sin(performance.now()/300)*0.15+0.35;
+    ctx.fillStyle = `rgba(126,203,255,${pulse2})`;
+    ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6);
+    ctx.strokeStyle = '#7ecbff'; ctx.lineWidth=2;
+    ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
+  }
+}
+
+function drawAnimal(a,camX,camY){
+  if(a.submerged) return; // crocodile en embuscade : invisible sous l'eau
+  const sx=a.x-camX, sy=a.y-camY;
+  ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(sx,sy+7,8,3,0,0,Math.PI*2); ctx.fill();
+  ctx.save();
+  if(a.faceDir===1){ ctx.translate(sx*2,0); ctx.scale(-1,1); }
+  if(a.kind==='rabbit'){
+    ctx.fillStyle='#c9b79c';
+    ctx.beginPath(); ctx.ellipse(sx,sy,8,6,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#e3d6c2';
+    ctx.fillRect(sx-3,sy-12,2,7); ctx.fillRect(sx+1,sy-12,2,7);
+  } else if(a.kind==='boar'){
+    ctx.fillStyle='#6b4a3a';
+    ctx.beginPath(); ctx.ellipse(sx,sy,12,8,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#4a3226'; ctx.fillRect(sx-13,sy-3,6,5);
+  } else if(a.kind==='deer'){
+    ctx.fillStyle='#9c7a4f';
+    ctx.beginPath(); ctx.ellipse(sx,sy,10,7,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#7a5a38';
+    ctx.beginPath(); ctx.ellipse(sx-11,sy-6,5,5,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#5a4028'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(sx-13,sy-10); ctx.lineTo(sx-17,sy-17); ctx.moveTo(sx-9,sy-10); ctx.lineTo(sx-6,sy-18); ctx.stroke();
+  } else if(a.kind==='scorpion'){
+    ctx.fillStyle='#8a3a1e';
+    ctx.beginPath(); ctx.ellipse(sx,sy,9,6,0,0,Math.PI*2); ctx.fill();
+    for(let s=-1;s<=1;s+=2){ ctx.beginPath(); ctx.moveTo(sx-6,sy+s*3); ctx.lineTo(sx-13,sy+s*7); ctx.strokeStyle='#8a3a1e'; ctx.lineWidth=2; ctx.stroke(); }
+    ctx.strokeStyle='#8a3a1e'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(sx+6,sy); ctx.quadraticCurveTo(sx+16,sy-4, sx+13,sy-14); ctx.stroke();
+    ctx.fillStyle='#8a3a1e'; ctx.beginPath(); ctx.arc(sx+13,sy-14,2.4,0,Math.PI*2); ctx.fill();
+  } else if(a.kind==='wolf'){
+    ctx.fillStyle= a.provoked ? '#d69090' : '#bfc3c6';
+    ctx.beginPath(); ctx.ellipse(sx,sy,13,8,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle= a.provoked ? '#b06060' : '#9a9ea1'; ctx.fillRect(sx-16,sy-5,8,7);
+    ctx.fillStyle='#2a2a2a'; ctx.fillRect(sx-14,sy-3,2,2);
+  } else if(a.kind==='fox'){
+    ctx.fillStyle='#d9682e';
+    ctx.beginPath(); ctx.ellipse(sx,sy,9,6,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#c14f1f'; ctx.beginPath(); ctx.moveTo(sx-9,sy-2); ctx.lineTo(sx-16,sy-1); ctx.lineTo(sx-9,sy+4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#fdf3e6'; ctx.fillRect(sx+5,sy-1,4,3);
+    ctx.fillStyle='#2a2a2a'; ctx.fillRect(sx+2,sy-4,2,2);
+  } else if(a.kind==='bear'){
+    ctx.fillStyle= a.provoked ? '#5a3a2a' : '#4a3527';
+    ctx.beginPath(); ctx.ellipse(sx,sy,15,10,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3a2a1e'; ctx.beginPath(); ctx.arc(sx-15,sy-6,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#2a2a2a'; ctx.fillRect(sx-17,sy-6,2,2);
+  } else if(a.kind==='crocodile'){
+    ctx.fillStyle='#3a6b3a';
+    ctx.beginPath(); ctx.ellipse(sx,sy,15,6,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#2a5a2a'; ctx.fillRect(sx-20,sy-2,8,4);
+    ctx.fillStyle='#ffd23f'; ctx.beginPath(); ctx.arc(sx+6,sy-4,2,0,Math.PI*2); ctx.fill();
+  } else if(a.kind==='monkey'){
+    ctx.fillStyle='#6b4a34';
+    ctx.beginPath(); ctx.ellipse(sx,sy,9,7,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#e3c9a0'; ctx.beginPath(); ctx.arc(sx+3,sy-3,4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#4a3020'; ctx.beginPath(); ctx.arc(sx-8,sy-6,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(sx-2,sy-9,3,0,Math.PI*2); ctx.fill();
+  } else if(a.kind==='goat'){
+    ctx.fillStyle='#e8e2d5';
+    ctx.beginPath(); ctx.ellipse(sx,sy,9,6,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#8a8578'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(sx+3,sy-9); ctx.quadraticCurveTo(sx+9,sy-13,sx+7,sy-6); ctx.stroke();
+    ctx.fillStyle='#2a2a2a'; ctx.fillRect(sx+5,sy-3,2,2);
+  } else if(a.kind==='frog'){
+    ctx.fillStyle='#3d8a45';
+    ctx.beginPath(); ctx.ellipse(sx,sy,7,5,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(sx-3,sy-4,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(sx+3,sy-4,2,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(sx-3,sy-4,1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(sx+3,sy-4,1,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx-9, sy-18, 18, 3);
+  ctx.fillStyle= (a.hostile || a.ambush || (a.predator && a.provoked) || (a.territorial && a.provoked)) ? '#e74c3c' : '#7ac142';
+  ctx.fillRect(sx-9, sy-18, 18*Math.max(0,a.hp/a.maxHp), 3);
+}
+
+function drawZombie(z,camX,camY){
+  const sx = z.x-camX, sy = z.y-camY;
+  ctx.fillStyle = '#3c6b35'; ctx.fillRect(sx-8, sy-10, 16, 20);
+  ctx.fillStyle = '#274a22'; ctx.fillRect(sx-6, sy-16, 12, 8);
+  ctx.fillStyle = '#c0392b'; ctx.fillRect(sx-4, sy-13, 3,3); ctx.fillRect(sx+2, sy-13, 3,3);
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx-10, sy-22, 20, 4);
+  ctx.fillStyle='#c0392b'; ctx.fillRect(sx-10, sy-22, 20*Math.max(0,z.hp/z.maxHp), 4);
+}
+
+function drawPlayer(camX,camY){
+  const sx = player.x-camX, sy = player.y-camY;
+  ctx.save();
+  if(player.hurtFlash>0){ ctx.globalAlpha = 0.6 + 0.4*Math.sin(performance.now()/40); }
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(sx,sy+12,10,4,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#3477c9'; ctx.fillRect(sx-8, sy-10, 16, 18);
+  ctx.fillStyle = '#e8b98a'; ctx.fillRect(sx-7, sy-20, 14, 12);
+  ctx.fillStyle = '#5a3a1e'; ctx.fillRect(sx-7, sy-20, 14, 4);
+  const {dx,dy} = facingOffset();
+  ctx.fillStyle = '#222'; ctx.fillRect(sx+dx*10-2, sy+dy*10-2, 4,4);
+  const swTier = hasTool('sword');
+  if(swTier>0){ ctx.fillStyle= swTier===2?'#9d9d9d':'#c9a06a'; ctx.fillRect(sx+8,sy-4,3,14); }
+  ctx.restore();
+}
+
+function drawNightOverlay(camX,camY){
+  if(inDungeon2) return;
+  const t = dayTime;
+  let darkness = 0;
+  if(t>NIGHT_START && t<NIGHT_END){
+    const span = NIGHT_END-NIGHT_START;
+    const p = (t-NIGHT_START)/span;
+    darkness = Math.sin(p*Math.PI) * 0.78 + 0.12;
+  }
+  if(darkness<=0.01) return;
+
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const octx = off.getContext('2d');
+  octx.fillStyle = `rgba(5,8,30,${darkness})`;
+  octx.fillRect(0,0,W,H);
+  octx.globalCompositeOperation = 'destination-out';
+  function lightAt(x,y,radius){
+    const g = octx.createRadialGradient(x,y,0,x,y,radius);
+    g.addColorStop(0,'rgba(255,255,255,0.95)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    octx.fillStyle = g; octx.beginPath(); octx.arc(x,y,radius,0,Math.PI*2); octx.fill();
+  }
+  lightAt(player.x-camX, player.y-camY, 140);
+  for(let i=0;i<objects.length;i++){
+    const o = objects[i];
+    if(o && o.type==='campfire'){
+      const tx = i%WORLD_W, ty=Math.floor(i/WORLD_W);
+      lightAt(tx*TILE+16-camX, ty*TILE+16-camY, 110);
+    }
+  }
+  octx.globalCompositeOperation='source-over';
+  ctx.drawImage(off,0,0);
+}
+
+// Brouillard de guerre : au-delà de VISION_RADIUS_TILES blocs autour du joueur,
+// l'écran devient totalement noir et opaque. Ce cercle suit le joueur en permanence.
+function drawVisionLimit(camX,camY){
+  const px = player.x - camX, py = player.y - camY;
+  const outerR = VISION_RADIUS_PX;
+  const innerR = Math.max(0, (VISION_RADIUS_TILES - VISION_FADE_TILES) * TILE);
+
+  // Si même le coin le plus éloigné de l'écran est dans le rayon de vision,
+  // rien à masquer (évite un calcul inutile).
+  const corners = [
+    {x:0,y:0},{x:W,y:0},{x:0,y:H},{x:W,y:H}
+  ];
+  const maxCornerDist = Math.max(...corners.map(c=>dist(px,py,c.x,c.y)));
+  if(maxCornerDist <= innerR) return;
+
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const octx = off.getContext('2d');
+  octx.fillStyle = '#000';
+  octx.fillRect(0,0,W,H);
+  octx.globalCompositeOperation = 'destination-out';
+  const g = octx.createRadialGradient(px,py,innerR, px,py,outerR);
+  g.addColorStop(0,'rgba(255,255,255,1)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  octx.fillStyle = g;
+  octx.beginPath(); octx.arc(px,py,outerR,0,Math.PI*2); octx.fill();
+  octx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(off,0,0);
+}
+
+/* =========================================================
+   BOUCLE
+========================================================= */
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min(0.05,(now-lastT)/1000);
+  lastT = now;
+  if(started && !gameOver && !craftOpen && !invOpen){
+    updatePlayer(dt);
+    updateZombies(dt);
+    updateAnimals(dt);
+    updateEnt(dt);
+    updateBoss2(dt);
+    updateProjectiles(dt);
+    updateSaplings(dt);
+    updatePower(dt);
+    updateDrops(dt);
+    updateParticles(dt);
+    dayTime += dt/DAY_LENGTH;
+    if(dayTime>=1){ dayTime-=1; dayCount++; }
+    updateHUD();
+  }
+  if(started) draw();
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   DÉMARRAGE (automatique, pas d'écran d'accueil)
+========================================================= */
+function startGame(){
+  freshState();
+  generateWorld();
+  document.getElementById('deathScreen').style.display='none';
+  document.getElementById('bossBarWrap').style.display='none';
+  toggleCraft(false);
+  toggleInventory(false);
+  buildHotbarDOM();
+  buildInvGridDOM();
+  started = true;
+  updateHUD();
+}
+
+startGame();
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
