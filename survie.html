@@ -257,6 +257,9 @@ const ITEM_DEFS = {
   wire:        {icon:'➰', name:'Fil conducteur',      max:64, cat:'place_wire'},
   timer:       {icon:'🔁', name:'Minuterie directionnelle', max:64, cat:'place_wire'},
   piston:      {icon:'🔲', name:'Piston',              max:64, cat:'place'},
+  observer:    {icon:'👁️', name:'Observateur', max:64, cat:'place'},
+  piston_sticky:{icon:'🟩', name:'Piston collant',     max:64, cat:'place'},
+  sticky_block:{icon:'🍯', name:'Bloc collant',        max:64, cat:'place'},
   plate:       {icon:'⬜', name:'Plaque de pression',  max:64, cat:'place'},
   door:        {icon:'🚪', name:'Porte',               max:64, cat:'place'},
   gem:         {icon:'💎', name:'Gemme mystérieuse',    max:64, cat:'resource'},
@@ -455,7 +458,7 @@ function generateWorld(){
   // Bassins supplémentaires dans les marécages : eau peu profonde et dense en végétation.
   for(let ty=0; ty<OVERWORLD_H; ty++){
     for(let tx=0; tx<OVERWORLD_W; tx++){
-      if(biome[idx(tx,ty)]==='swamp' && Math.random()<0.05){
+      if(biome[idx(tx,ty)]==='swamp' && Math.random()<0.02){
         const r = randi(1,3);
         for(let dy=-r; dy<=r; dy++){
           for(let dx=-r; dx<=r; dx++){
@@ -549,7 +552,7 @@ function generateWorld(){
     else if(Math.random()<0.6) objects[idx(tx,ty)] = {type:'tree', variant:'normal', hp:3, maxHp:3};
   }
 
-  for(let i=0;i<55;i++){
+  for(let i=0;i<1555;i++){
     const tx = randi(0,WORLD_W-1), ty = randi(0,OVERWORLD_H-1);
     if(tiles[idx(tx,ty)]!==TILE_TYPES.GRASS) continue;
     if(objects[idx(tx,ty)]) continue;
@@ -779,7 +782,7 @@ function tileSolid(tx,ty){
   const o = objects[idx(tx,ty)];
   if(!o) return false;
   // Les arbres ne bloquent plus les déplacements (joueur ou animaux).
-  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='dungeon2_wall') return true;
+  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block' || o.type==='dungeon2_wall') return true;
   if(o.type==='door') return !o.open;
   return false;
 }
@@ -788,11 +791,11 @@ function tileSolid(tx,ty){
    MESSAGES
 ========================================================= */
 function pushMsg(text){
-  const el = document.createElement('div');
+ /* const el = document.createElement('div');
   el.textContent = text;
   document.getElementById('msgLog').prepend(el);
   setTimeout(()=>{ el.style.transition='opacity .4s'; el.style.opacity='0'; setTimeout(()=>el.remove(),400); }, 1800);
-}
+*/}
 
 /* =========================================================
    PARTICULES
@@ -824,6 +827,9 @@ const RECIPES = [
   {id:'wire', name:'Fil conducteur (x8)', icon:'➰', cost:{stone:2}, show:()=>true, effect:()=>addItem('wire',8)},
   {id:'timer', name:'Minuterie directionnelle (x2)', icon:'🔁', cost:{wood:2, stone:2}, show:()=>true, effect:()=>addItem('timer',2)},
   {id:'piston', name:'Piston', icon:'🔲', cost:{wood:3, stone:3}, show:()=>true, effect:()=>addItem('piston',1)},
+  {id:'observer', name:'Observateur', icon:'👁️', cost:{stone:2,}, show:()=>true, effect:()=>addItem('observer',1)},
+  {id:'piston_sticky', name:'Piston collant', icon:'🟩', cost:{wood:3, stone:2, hide:2}, show:()=>true, effect:()=>addItem('piston_sticky',1)},
+  {id:'sticky_block', name:'Bloc collant (x4)', icon:'🍯', cost:{wood:2, hide:1}, show:()=>true, effect:()=>addItem('sticky_block',4)},
   {id:'plate', name:'Plaque de pression', icon:'⬜', cost:{wood:2}, show:()=>true, effect:()=>addItem('plate',1)},
   {id:'door', name:'Porte', icon:'🚪', cost:{wood:4}, show:()=>true, effect:()=>addItem('door',1)},
 ];
@@ -838,7 +844,7 @@ function renderRecipes(){
     const div = document.createElement('div');
     div.className = 'recipe';
     const costTxt = Object.entries(r.cost).map(([k,v])=>{
-      const ic = {wood:'🪵',stone:'🪨'}[k] || k;
+      const ic = {wood:'🪵',stone:'🪨',hide:'🟤'}[k] || k;
       return `${v} ${ic}`;
     }).join(' + ');
     div.innerHTML = `<div class="name"><span style="font-size:20px">${r.icon}</span>${r.name}</div><div class="cost">${costTxt}</div>`;
@@ -848,7 +854,7 @@ function renderRecipes(){
     btn.onclick = ()=>{
       if(!canAfford(r.cost)) return;
       pay(r.cost); r.effect();
-      pushMsg(`Fabriqué : ${r.name}`);
+     
       renderRecipes(); updateHUD();
     };
     div.appendChild(btn);
@@ -1032,8 +1038,8 @@ function doInteract(){
     const dmg = swordDamage();
     target.hp -= dmg;
     spawnParticles(target.x,target.y,'#8b0000',8);
-    if(target.hp<=0){ zombies.splice(zombies.indexOf(target),1); pushMsg('Zombi éliminé !'); spawnParticles(target.x,target.y,'#4a1010',14); }
-    else pushMsg('Coup porté !');
+    if(target.hp<=0){ zombies.splice(zombies.indexOf(target),1); spawnParticles(target.x,target.y,'#4a1010',14); }
+    else
     return;
   }
 
@@ -1044,8 +1050,7 @@ function doInteract(){
       ent.hp -= dmg;
       spawnParticles(ent.x,ent.y,'#5a3a1e',10);
       if(ent.hp<=0) defeatEnt();
-      else pushMsg("Coup porté à l'Ent !");
-      return;
+      else return;
     }
   }
 
@@ -1057,8 +1062,7 @@ function doInteract(){
       boss.hp -= dmg;
       spawnParticles(boss.x,boss.y,'#7ecbff',10);
       if(boss.hp<=0) defeatBoss2();
-      else pushMsg('Coup porté au Gardien Lamé !');
-      return;
+      else return;
     }
   }
 
@@ -1075,7 +1079,7 @@ function doInteract(){
           w.provoked = true; w.provokeTimer = 20;
         }
       }
-      pushMsg('Vous avez provoqué la meute !');
+     
     } else if(animalTarget.territorial){
       animalTarget.provoked = true;
       animalTarget.provokeTimer = 12;
@@ -1105,7 +1109,7 @@ function doInteract(){
       pushMsg('Maj+E pour le récupérer.');
       return;
     }
-    pushMsg("Rien à faire ici.");
+    
     return;
   }
 
@@ -1115,6 +1119,8 @@ function doInteract(){
     pushMsg(o.berries ? 'Maj+E pour cueillir les baies.' : 'Ce buisson est vide pour le moment.');
   } else if(o.type==='wall'){
     pushMsg('Un mur. Maj+E pour le récupérer.');
+  } else if(o.type==='sticky_block'){
+    pushMsg('Un bloc collant : il accroche les blocs voisins. Maj+E pour le récupérer.');
   } else if(o.type==='campfire'){
     pushMsg("C'est un feu de camp (Maj+E pour le récupérer).");
   } else if(o.type==='lever'){
@@ -1124,6 +1130,8 @@ function doInteract(){
     pushMsg(o.open ? "Cette porte est alimentée et ouverte (Maj+E pour la récupérer)." : "Cette porte est fermée, alimentez-la via un circuit (Maj+E pour la récupérer).");
   } else if(o.type==='piston'){
     pushMsg('Un piston. Alimentez-le avec un levier relié par du fil (Maj+E pour le récupérer).');
+  } else if(o.type==='piston_sticky'){
+    pushMsg('Un piston collant : il tire les blocs en se rétractant. Maj+E pour le récupérer.');
   } else if(o.type==='plate'){
     pushMsg('Une plaque de pression, elle réagit toute seule. Maj+E pour la récupérer.');
   }
@@ -1148,7 +1156,7 @@ function dropAnimalLoot(a){
 }
 
 // Maj+E : récolte (arbres/pierre/baies), manger l'objet sélectionné, casser un mécanisme posé.
-const BREAKABLE_PLACED = {wall:'wall', campfire:'campfire', lever:'lever', piston:'piston', door:'door', plate:'plate', sapling:'sapling'};
+const BREAKABLE_PLACED = {wall:'wall', campfire:'campfire', lever:'lever', piston:'piston', piston_sticky:'piston_sticky', sticky_block:'sticky_block', door:'door', plate:'plate', sapling:'sapling',observer:'observer'};
 
 function harvestTree(tx,ty,o){
   const axeTier = hasTool('axe');
@@ -1187,7 +1195,7 @@ function harvestRock(tx,ty,o){
 }
 function harvestBush(tx,ty){
   objects[idx(tx,ty)] = {type:'bush', hp:1, maxHp:1, berries:false};
-  const leftover = addItem('berry',2);
+  const leftover = addItem('berry',3);
   if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'berry',leftover);
   pushMsg('+2 baies 🍓');
   spawnParticles(tx*TILE+16, ty*TILE+16, '#c0392b', 6);
@@ -1236,9 +1244,9 @@ function doHarvestOrEat(){
 
 function eatSelected(){
   const s = player.slots[selectedSlot];
-  if(!s){ pushMsg('Aucun objet sélectionné.'); return; }
+  if(!s){  return; }
   const def = ITEM_DEFS[s.id];
-  if(!def || def.cat!=='food'){ pushMsg("Cet objet ne se mange pas."); return; }
+  if(!def || def.cat!=='food'){  return; }
   removeItem(s.id,1);
   player.hunger = Math.min(player.maxHunger, player.hunger+def.hunger);
   player.hp = Math.min(player.maxHp, player.hp+def.heal);
@@ -1265,8 +1273,11 @@ function makePlaceObject(id, dir){
     case 'wall': return {type:'wall', hp:4, maxHp:4};
     case 'campfire': return {type:'campfire', hp:99, maxHp:99, light:true};
     case 'lever': return {type:'lever', on:false};
-    case 'piston': return {type:'piston', dir, extended:false};
+    case 'piston': return {type:'piston', dir, extended:false, powered:false};
+    case 'piston_sticky': return {type:'piston_sticky', dir, extended:false, powered:false};
+    case 'sticky_block': return {type:'sticky_block', hp:4, maxHp:4};
     case 'plate': return {type:'plate', active:false};
+     case 'observer': return {type:'observer',dir, powered:false, pulse:0, lastState:null };
     case 'door': return {type:'door', open:false};
     case 'sapling': return {type:'sapling', hp:1, maxHp:1, growTimer:rand(45,75)};
   }
@@ -1314,7 +1325,7 @@ function placeWireItem(id){
 function placeSelected(){
   if(craftOpen || invOpen) return;
   const slot = player.slots[selectedSlot];
-  if(!slot){ pushMsg('Aucun objet sélectionné.'); return; }
+  if(!slot){  return; }
   const def = ITEM_DEFS[slot.id];
   if(!def || (def.cat!=='place' && def.cat!=='place_wire')){ pushMsg("Cet objet ne peut pas être posé."); return; }
 
@@ -1334,6 +1345,108 @@ function placeSelected(){
     pushMsg(`${def.name} posé(e).`);
   }
   updateHUD();
+}
+
+/* =========================================================
+   PISTONS / BLOCS POUSSABLES ET COLLANTS
+========================================================= */
+// Un objet est "poussable" par un piston s'il s'agit d'un mur, d'une porte,
+// d'un bloc collant, ou d'un piston (normal ou collant) qui n'est PAS lui-même
+// alimenté en ce moment (un piston sous tension ne peut pas être déplacé).
+function isPushable(o){
+  if(!o) return false;
+  if(o.type==='wall' || o.type==='door' || o.type==='sticky_block'||o.type==='lever'||o.type==='observer') return true;
+  if(o.type==='piston' || o.type==='piston_sticky') return !o.powered;
+  return false;
+}
+
+const PISTON_MAX_GROUP = 12;
+
+// Rassemble, à partir de (startTx,startTy), tous les blocs qui doivent se
+// déplacer ensemble dans la direction (dx,dy) : la ligne droite (permet de
+// pousser/tirer plusieurs blocs alignés) ainsi que, pour tout bloc collant
+// rencontré, ses 4 voisins directs (permet de tirer/pousser une structure
+// entière accrochée à un bloc collant). Retourne un tableau (éventuellement
+// vide si rien à déplacer) ou null si le mouvement est impossible.
+function collectPushGroup(startTx, startTy, dx, dy, pistonTx = null, pistonTy = null){
+  if(!inBounds(startTx,startTy)) return [];
+  const startObj = objects[idx(startTx,startTy)];
+  if(!startObj) return [];
+  if(!isPushable(startObj)) return null;
+
+  const groupSet = new Set([startTx+','+startTy]);
+  const groupList = [{tx:startTx,ty:startTy,o:startObj}];
+  const queue = [groupList[0]];
+
+  while(queue.length){
+    const cur = queue.pop();
+    const neighbors = [[cur.tx+dx, cur.ty+dy]];
+    if(cur.o.type==='sticky_block'){
+  for(const [nx, ny] of [
+    [cur.tx+1, cur.ty],
+    [cur.tx-1, cur.ty],
+    [cur.tx, cur.ty+1],
+    [cur.tx, cur.ty-1]
+  ]){
+    // Ne pas rattacher le piston qui pousse actuellement
+    if(nx === pistonTx && ny === pistonTy) continue;
+    neighbors.push([nx, ny]);
+  }
+}
+    for(const [nx,ny] of neighbors){
+      const key = nx+','+ny;
+      if(groupSet.has(key)) continue;
+      if(!inBounds(nx,ny)) return null;
+      const no = objects[idx(nx,ny)];
+      if(!no) continue;
+      if(!isPushable(no)) return null;
+      groupSet.add(key);
+      const node = {tx:nx,ty:ny,o:no};
+      groupList.push(node);
+      queue.push(node);
+      if(groupList.length>PISTON_MAX_GROUP) return null;
+    }
+  }
+  return groupList;
+}
+
+// Vérifie que chaque bloc du groupe peut réellement avancer d'une case dans
+// (dx,dy) (pas d'eau, pas hors-limites, pas un objet immobile non inclus dans
+// le groupe), pousse le joueur d'une case s'il se trouve sur la case
+// d'arrivée, puis déplace effectivement tous les blocs. Retourne true si le
+// mouvement a eu lieu.
+function validateAndMove(groupList, dx, dy){
+  if(!groupList || groupList.length===0) return true;
+  const groupKeys = new Set(groupList.map(b=>b.tx+','+b.ty));
+
+  for(const b of groupList){
+    const ntx=b.tx+dx, nty=b.ty+dy;
+    if(!inBounds(ntx,nty)) return false;
+    if(tiles[idx(ntx,nty)]===TILE_TYPES.WATER) return false;
+    const destObj = objects[idx(ntx,nty)];
+    if(destObj && !groupKeys.has(ntx+','+nty)) return false;
+  }
+
+  const playerTx = Math.floor(player.x/TILE), playerTy = Math.floor(player.y/TILE);
+  let mustPushPlayer = false;
+  for(const b of groupList){
+    const ntx=b.tx+dx, nty=b.ty+dy;
+    if(ntx===playerTx && nty===playerTy && !groupKeys.has(playerTx+','+playerTy)){
+      mustPushPlayer = true;
+    }
+  }
+  if(mustPushPlayer){
+    const npx = playerTx+dx, npy = playerTy+dy;
+    if(!inBounds(npx,npy) || tileSolid(npx,npy)) return false;
+    player.x = npx*TILE+16; player.y = npy*TILE+16;
+  }
+
+  groupList.slice().sort((a,b)=> (b.tx*dx+b.ty*dy) - (a.tx*dx+a.ty*dy)).forEach(b=>{
+    const ntx=b.tx+dx, nty=b.ty+dy;
+    objects[idx(ntx,nty)] = b.o;
+    objects[idx(b.tx,b.ty)] = null;
+  });
+  return true;
 }
 
 /* =========================================================
@@ -1369,17 +1482,8 @@ function tileFeedsInto(fromTx,fromTy,toTx,toTy,poweredArr){
 function updatePower(dt){
   powerTimer -= dt;
 
-  for(let i=0;i<objects.length;i++){
-    const o = objects[i];
-    if(o && o.type==='plate'){
-      const tx=i%WORLD_W, ty=Math.floor(i/WORLD_W);
-      const cxp = tx*TILE+16, cyp = ty*TILE+16;
-      let active = dist(player.x,player.y,cxp,cyp) < 20;
-      if(!active){ for(const a of animals){ if(dist(a.x,a.y,cxp,cyp) < 18){ active=true; break; } } }
-      if(!active){ for(const z of zombies){ if(dist(z.x,z.y,cxp,cyp) < 18){ active=true; break; } } }
-      o.active = active;
-    }
-  }
+ 
+ 
 
   if(powerTimer > 0) return;
   powerTimer = POWER_TICK;
@@ -1392,7 +1496,11 @@ function updatePower(dt){
 
   for(let i=0;i<objects.length;i++){
     const o = objects[i];
-    if(o && ((o.type==='lever' && o.on) || (o.type==='plate' && o.active))){
+   if(o && (
+  (o.type==='lever' && o.on) ||
+  (o.type==='plate' && o.active) ||
+  (o.type==='observer' && o.powered)
+)){
       powered[i] = 1; queue.push(i);
     }
   }
@@ -1486,44 +1594,106 @@ if(w.charging){
 }
   }
 
-  // Pistons / portes : vérifient chacun de leurs 4 voisins avec la même
-  // logique directionnelle (câble, levier/plaque, ou minuterie orientée
-  // vers eux).
+  // Pistons (normaux et collants) / portes : vérifient chacun de leurs 4
+  // voisins avec la même logique directionnelle (câble, levier/plaque, ou
+  // minuterie orientée vers eux).
   for(let i=0;i<objects.length;i++){
     const o = objects[i];
     if(!o) continue;
-    if(o.type==='piston' || o.type==='door'){
+    if(o.type==='piston' || o.type==='piston_sticky' || o.type==='door'){
       const tx=i%WORLD_W, ty=Math.floor(i/WORLD_W);
       let p=false;
       const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
       for(const [dx,dy] of dirs){
         const nx=tx+dx, ny=ty+dy;
-        if(tileFeedsInto(nx,ny,tx,ty,powered)){ p=true; break; }
+       if(tileFeedsInto(nx,ny,tx,ty,powered)){
+  p=true;
+  break;
+}
+
+const no = objects[idx(nx,ny)];
+if(no && no.type==='observer' && no.powered){
+  p=true;
+  break;
+}
+
       }
       if(o.type==='door'){ o.open = p; }
-      if(o.type==='piston'){
+      if(o.type==='piston' || o.type==='piston_sticky'){
+        o.powered = p;
         if(p && !o.extended){
           const fx = tx+o.dir.dx, fy = ty+o.dir.dy;
-          tryPushWall(fx,fy,o.dir.dx,o.dir.dy);
-          o.extended = true;
+          const grp = collectPushGroup(fx, fy, o.dir.dx, o.dir.dy, tx, ty);
+          if(grp!==null && validateAndMove(grp, o.dir.dx, o.dir.dy)){
+            o.extended = true;
+          }
         } else if(!p && o.extended){
           o.extended = false;
+          if(o.type==='piston_sticky'){
+            const bx = tx+o.dir.dx*2, by = ty+o.dir.dy*2;
+            const grp2 = collectPushGroup(bx,by,-o.dir.dx,-o.dir.dy);
+            if(grp2!==null) validateAndMove(grp2, -o.dir.dx, -o.dir.dy);
+          }
         }
+        
+      }
+    }
+    
+  }
+  // Mise à jour finale des observateurs après les mouvements de pistons
+for(let i=0;i<objects.length;i++){
+  const o = objects[i];
+  if(!o || o.type!=='observer') continue;
+
+  const tx = i % WORLD_W;
+  const ty = Math.floor(i / WORLD_W);
+  if(o.lastX === undefined){
+    o.lastX = tx;
+    o.lastY = ty;
+  }
+  else if(o.lastX !== tx || o.lastY !== ty){
+    o.powered = true;
+    o.pulse = 3;
+    console.log("OBSERVATEUR DEPLACE");
+  }
+
+  o.lastX = tx;
+  o.lastY = ty;
+  const sx = tx + o.dir.dx;
+  const sy = ty + o.dir.dy;
+
+  let state = 'empty';
+
+  if(inBounds(sx,sy)){
+    const so = objects[idx(sx,sy)];
+
+    if(so){
+      state = so.type;
+
+      if(so.type==='piston' || so.type==='piston_sticky'){
+        state += so.extended ? '_extended' : '_closed';
       }
     }
   }
-}
 
-function tryPushWall(tx,ty,dx,dy){
-  if(!inBounds(tx,ty)) return;
-  const target = objects[idx(tx,ty)];
-  if(!target || target.type!=='wall') return;
-  const ntx = tx+dx, nty = ty+dy;
-  if(!inBounds(ntx,nty)) return;
-  if(tiles[idx(ntx,nty)]===TILE_TYPES.WATER) return;
-  if(objects[idx(ntx,nty)]) return;
-  objects[idx(ntx,nty)] = target;
-  objects[idx(tx,ty)] = null;
+  if(o.lastState !== undefined && state !== o.lastState){
+    o.powered = true;
+    o.pulse = 10;
+    console.log("Observer détecte", state);
+  }
+
+  o.lastState = state;
+
+  if(o.pulse > 0){
+    o.pulse--;
+  }if(o.pulse > 0){
+  o.pulse--;
+}
+else{
+  o.powered = false;
+}
+}
+  
 }
 
 /* =========================================================
@@ -2384,11 +2554,18 @@ function drawObject(tx,ty,o,camX,camY){
     ctx.fillStyle = '#8f8f8f';
     ctx.beginPath(); ctx.moveTo(cx-9,cy-9); ctx.lineTo(cx+4,cy-13); ctx.lineTo(cx+2,cy-3); ctx.closePath(); ctx.fill();
   } else if(o.type==='bush'){
-    ctx.fillStyle = '#2e6b1f'; ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#214d16'; ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.fill();
     if(o.berries){ ctx.fillStyle = '#c0392b'; [[-4,-2],[4,1],[0,5]].forEach(([dx,dy])=>{ ctx.beginPath(); ctx.arc(cx+dx,cy+dy,2.4,0,Math.PI*2); ctx.fill(); }); }
   } else if(o.type==='wall'){
     ctx.fillStyle = '#7a5230'; ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6);
     ctx.strokeStyle = '#3e2712'; ctx.lineWidth=2; ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
+  } else if(o.type==='sticky_block'){
+    ctx.fillStyle = '#9acb3c'; ctx.fillRect(sx+2,sy+2,TILE-4,TILE-4);
+    ctx.strokeStyle = '#5f8a1e'; ctx.lineWidth=2; ctx.strokeRect(sx+2,sy+2,TILE-4,TILE-4);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.arc(cx-6,cy-6,3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx+7,cy+3,2,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx-2,cy+8,2,0,Math.PI*2); ctx.fill();
   } else if(o.type==='campfire'){
     ctx.fillStyle = '#3e2712'; ctx.fillRect(cx-9,cy+4,18,4);
     const flick = 3+Math.sin(performance.now()/120)*2;
@@ -2419,7 +2596,46 @@ function drawObject(tx,ty,o,camX,camY){
     const hx = o.dir.dx*(o.extended?12:4), hy = o.dir.dy*(o.extended?12:4);
     ctx.fillStyle = '#a68a5a';
     ctx.fillRect(cx+hx-4, cy+hy-4, 8, 8);
-  } else if(o.type==='sapling'){
+  } else if(o.type==='piston_sticky'){
+    ctx.fillStyle = '#4d7a3e'; ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6);
+    ctx.strokeStyle = '#274a1e'; ctx.lineWidth=2; ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
+    const hx2 = o.dir.dx*(o.extended?12:4), hy2 = o.dir.dy*(o.extended?12:4);
+    ctx.fillStyle = '#9acb3c';
+    ctx.fillRect(cx+hx2-4, cy+hy2-4, 8, 8);
+  }else if(o.type==='observer'){
+  // Corps du bloc
+  ctx.fillStyle = '#7b7b7b';
+  ctx.fillRect(sx+3, sy+3, TILE-6, TILE-6);
+
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(sx+3, sy+3, TILE-6, TILE-6);
+
+  // Face de l'observateur
+  const fx = cx + o.dir.dx*10;
+  const fy = cy + o.dir.dy*10;
+
+  ctx.fillStyle = o.powered ? '#ff4444' : '#222';
+  ctx.beginPath();
+  ctx.arc(fx, fy, 5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Petit œil
+  ctx.fillStyle = '#eee';
+  ctx.beginPath();
+  ctx.arc(fx, fy, 2, 0, Math.PI*2);
+  ctx.fill();
+
+  // Lumière quand il envoie une impulsion
+  if(o.powered){
+    ctx.fillStyle = 'rgba(255,80,50,0.25)';
+    ctx.beginPath();
+    ctx.arc(fx, fy, 12, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+  
+  else if(o.type==='sapling'){
     ctx.fillStyle = '#3e2712'; ctx.fillRect(cx-2, sy+22, 4, 7);
     ctx.fillStyle = '#4caf3f';
     ctx.beginPath(); ctx.ellipse(cx-4, sy+18, 5, 7, -0.5, 0, Math.PI*2); ctx.fill();
@@ -2652,6 +2868,7 @@ function startGame(){
   buildInvGridDOM();
   started = true;
   updateHUD();
+  
 }
 
 startGame();
