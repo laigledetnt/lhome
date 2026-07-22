@@ -929,7 +929,7 @@ function tileSolid(tx,ty){
   const o = objects[idx(tx,ty)];
   if(!o) return false;
   // Les arbres ne bloquent plus les déplacements (joueur ou animaux).
-  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block' || o.type==='dungeon2_wall' ) return true;
+  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block'  ) return true;
   if(o.type==='door') return false;
   return false;
 }
@@ -1190,8 +1190,6 @@ function doInteract(){
   if(craftOpen || invOpen) return;
   if(player.atkCd>0) return;
 
-  // Si un arc est équipé (sélectionné) et que des flèches sont disponibles,
-  // E tire une flèche au lieu de frapper au corps-à-corps.
   const selItem = player.slots[selectedSlot];
   if(selItem && ITEM_DEFS[selItem.id].kind==='bow'){
     if(countItem('arrow')<=0){ logMsg("Plus de flèches !"); player.atkCd = 0.25; return; }
@@ -1200,8 +1198,23 @@ function doInteract(){
     return;
   }
 
+  // --- NOUVEAU : activer un levier ---
+  const {tx:ftx, ty:fty} = facingTile();
+  if(inBounds(ftx,fty)){
+    const fo = objects[idx(ftx,fty)];
+    if(fo && fo.type==='lever'){
+      fo.on = !fo.on;
+      spawnParticles(ftx*TILE+16, fty*TILE+16, fo.on ? '#ff5a3c' : '#888', 6);
+      logMsg(fo.on ? 'Levier activé' : 'Levier désactivé');
+      player.atkCd = 0.2;
+      return;
+    }
+  }
+  // --- FIN NOUVEAU ---
+
   const range = 42;
   let didAttack = false;
+  
 
   let target=null, bestD=Infinity;
   for(const z of zombies){ const d=dist(player.x,player.y,z.x,z.y); if(d<range && d<bestD){bestD=d; target=z;} }
