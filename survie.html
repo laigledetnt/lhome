@@ -222,9 +222,9 @@ const VISION_RADIUS_PX = VISION_RADIUS_TILES * TILE;
 const VISION_FADE_TILES = 4; // largeur du dégradé juste avant la limite, pour un bord moins brutal
 
 // Distance (en blocs) à laquelle les animaux apparaissent / disparaissent autour du joueur.
-const ANIMAL_SPAWN_DIST_TILES = 30;
+const ANIMAL_SPAWN_DIST_TILES = 60;
 const ANIMAL_SPAWN_DIST_PX = ANIMAL_SPAWN_DIST_TILES * TILE;
-const ANIMAL_DESPAWN_DIST_TILES = 50;
+const ANIMAL_DESPAWN_DIST_TILES = 80;
 const ANIMAL_DESPAWN_DIST_PX = ANIMAL_DESPAWN_DIST_TILES * TILE;
 
 const TILE_TYPES = { GRASS:0, WATER:1, SAND:2, ROCKFLOOR:3 };
@@ -575,17 +575,17 @@ function generateWorld(){
   generateBarrierAndBackstage();
   setupDungeon2();
 
-  for(let i=0;i<4;i++) spawnAnimal('rabbit');
-  for(let i=0;i<4;i++) spawnAnimal('boar');
-  for(let i=0;i<6;i++) spawnAnimal('deer');
+  for(let i=0;i<2;i++) spawnAnimal('rabbit');
+  for(let i=0;i<2;i++) spawnAnimal('boar');
+  for(let i=0;i<3;i++) spawnAnimal('deer');
   for(let i=0;i<5;i++) spawnAnimal('scorpion');
-  for(let i=0;i<5;i++) spawnWolfPack(randi(3,4));
-  for(let i=0;i<4;i++) spawnAnimal('fox');
-  for(let i=0;i<3;i++) spawnAnimal('bear');
-  for(let i=0;i<4;i++) spawnAnimal('crocodile');
-  for(let i=0;i<4;i++) spawnAnimal('monkey');
-  for(let i=0;i<5;i++) spawnAnimal('goat');
-  for(let i=0;i<6;i++) spawnAnimal('frog');
+  for(let i=0;i<2;i++) spawnWolfPack(randi(5,6));
+  for(let i=0;i<2;i++) spawnAnimal('fox');
+  for(let i=0;i<2;i++) spawnAnimal('bear');
+  for(let i=0;i<5;i++) spawnAnimal('crocodile');
+  for(let i=0;i<2;i++) spawnAnimal('monkey');
+  for(let i=0;i<3;i++) spawnAnimal('goat');
+  for(let i=0;i<3;i++) spawnAnimal('frog');
 }
 
 /* =========================================================
@@ -673,22 +673,24 @@ function setupDungeon2(){
   };
 }
 
+// Compteur global d'identifiants de meute, utilisé pour relier chaque loup
+// suiveur à son loup alpha.
+let wolfPackIdCounter = 0;
+let currentWolfAlpha = null;
+
 const ANIMAL_DEFS = {
   rabbit:    {hp:10, speed:70,  hostile:false, skittish:false, prey:true,  biomes:['plains','forest']},
   boar:      {hp:26, speed:45,  hostile:false, skittish:false, prey:true,  biomes:['plains','forest']},
   deer:      {hp:16, speed:85,  hostile:false, skittish:true,  prey:true,  biomes:['forest']},
   scorpion:  {hp:18, speed:60,  hostile:true,  dmg:8,  aggro:220, prey:false, biomes:['desert']},
   wolf:      {hp:34, speed:95,  hostile:false, dmg:14, aggro:260, prey:false, predator:true, biomes:['snow']},
+  wolfAlpha:{hp:80,speed:100,hostile:false,dmg:22,aggro:350,prey:false,predator:true,alpha:true,biomes:['snow']},
   fox:       {hp:12, speed:120, hostile:false, skittish:true, prey:true, thief:true, biomes:['forest','plains']},
   bear:      {hp:70, speed:52,  hostile:true,  dmg:22, aggro:200, territorial:true, leash:260, biomes:['mountain','forest','snow']},
   crocodile: {hp:30, speed:150, hostile:true,  dmg:18, aggro:100, ambush:true, biomes:['swamp']},
   monkey:    {hp:14, speed:100, hostile:false, prey:false, thief:true, ranged:true, biomes:['jungle']},
   goat:      {hp:14, speed:105, hostile:false, skittish:true, prey:true, biomes:['mountain']},
   frog:      {hp:4,  speed:80,  hostile:false, prey:true, harmless:true, biomes:['swamp','jungle']},
-};
-const ANIMAL_LABELS = {
-  rabbit:'Lapin', boar:'Sanglier', deer:'Cerf', scorpion:'Scorpion', wolf:'Loup',
-  fox:'Renard', bear:'Ours', crocodile:'Crocodile', monkey:'Singe', goat:'Chèvre', frog:'Grenouille'
 };
 
 // Choisit une case autour du joueur, à ANIMAL_SPAWN_DIST_TILES blocs environ,
@@ -756,26 +758,104 @@ function spawnAnimal(kind){
 function spawnWolfPack(count){
   const spot = findSpawnTileForBiomes(['snow']);
   if(!spot) return;
-  const {tx,ty} = spot;
-  const def = ANIMAL_DEFS.wolf;
+
+  const {tx,ty}=spot;
+  const packId = wolfPackIdCounter++;
+
+  let alphaWolf = null;
+  const packMembers = [];
+
   for(let i=0;i<count;i++){
-    const ox = clamp(tx+randi(-2,2),1,WORLD_W-2), oy = clamp(ty+randi(-2,2),1,OVERWORLD_H-2);
+
+    const isAlpha = (currentWolfAlpha === null && i===0);
+
+    const def = isAlpha ? ANIMAL_DEFS.wolfAlpha : ANIMAL_DEFS.wolf;
+
+    const ox = clamp(tx+randi(-4,4),1,WORLD_W-2);
+    const oy = clamp(ty+randi(-4,4),1,OVERWORLD_H-2);
+
     if(tileSolid(ox,oy)) continue;
-    animals.push({
-      kind:'wolf', x:ox*TILE+16, y:oy*TILE+16,
-      hp:def.hp, maxHp:def.hp, speed:def.speed,
-      hostile:false, skittish:false, predator:true, prey:false,
-      thief:false, ranged:false, territorial:false, ambush:false, harmless:false,
-      dmg:def.dmg, aggroRange:def.aggro, leashRange:0,
-      homeX:ox*TILE+16, homeY:oy*TILE+16,
-      provoked:false, provokeTimer:0, huntTarget:null,
-      wanderAngle: rand(0,Math.PI*2), wanderT: rand(0,2),
-      fleeTimer:0, hitCd:0, faceDir:-1,
-      stealCd:0, throwCd:0, submerged:false, burstTimer:0
-    });
+
+    const wolf={
+      kind:'wolf',
+
+      alpha:isAlpha,
+      packId,
+
+      packLeader:null,
+      packMembers:[],
+
+      x:ox*TILE+16,
+      y:oy*TILE+16,
+
+      hp:def.hp,
+      maxHp:def.hp,
+
+      speed:def.speed,
+      dmg:def.dmg,
+      aggroRange:def.aggro,
+
+      predator:true,
+
+      huntTarget:null,
+
+      homeX:ox*TILE+16,
+      homeY:oy*TILE+16,
+
+      wanderAngle:rand(0,Math.PI*2),
+      wanderT:rand(0,2),
+
+      hitCd:0,
+      faceDir:-1
+    };
+
+    animals.push(wolf);
+    packMembers.push(wolf);
+
+
+    if(isAlpha){
+      alphaWolf = wolf;
+      currentWolfAlpha = wolf;
+    }
+  }
+
+
+  // Relie la meute au chef
+  if(alphaWolf){
+
+    alphaWolf.packMembers = packMembers;
+
+    for(const w of packMembers){
+      if(w !== alphaWolf){
+        w.packLeader = alphaWolf;
+      }
+    }
+
   }
 }
+function doorSolidAt(px, py){
+  const tx = Math.floor(px / TILE);
+  const ty = Math.floor(py / TILE);
 
+  if(!inBounds(tx,ty)) return true;
+
+  const o = objects[idx(tx,ty)];
+
+  if(!o || o.type!=='door' || o.open) return false;
+
+  const lx = px - tx*TILE;
+  const ly = py - ty*TILE;
+
+  const th = 3; // épaisseur de la porte
+
+  if(o.dir && o.dir.dx !== 0){
+    // porte verticale
+    return Math.abs(lx - TILE/2) < th;
+  }else{
+    // porte horizontale
+    return Math.abs(ly - TILE/2) < th;
+  }
+}
 function tileSolid(tx,ty){
   if(!inBounds(tx,ty)) return true;
   if(tiles[idx(tx,ty)]===TILE_TYPES.WATER) return true;
@@ -783,19 +863,9 @@ function tileSolid(tx,ty){
   if(!o) return false;
   // Les arbres ne bloquent plus les déplacements (joueur ou animaux).
   if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block' || o.type==='dungeon2_wall') return true;
-  if(o.type==='door') return !o.open;
+  if(o.type==='door') return false;
   return false;
 }
-
-/* =========================================================
-   MESSAGES
-========================================================= */
-function pushMsg(text){
- /* const el = document.createElement('div');
-  el.textContent = text;
-  document.getElementById('msgLog').prepend(el);
-  setTimeout(()=>{ el.style.transition='opacity .4s'; el.style.opacity='0'; setTimeout(()=>el.remove(),400); }, 1800);
-*/}
 
 /* =========================================================
    PARTICULES
@@ -854,7 +924,7 @@ function renderRecipes(){
     btn.onclick = ()=>{
       if(!canAfford(r.cost)) return;
       pay(r.cost); r.effect();
-     
+
       renderRecipes(); updateHUD();
     };
     div.appendChild(btn);
@@ -1003,7 +1073,10 @@ window.addEventListener('keydown', e=>{
   if(k==='e'){ if(keys['shift']) doHarvestOrEat(); else doInteract(); }
   if(k==='b'){ placeSelected(); }
   if(k==='a'){ dropSelected(); }
-  if(k>='1' && k<='9'){ selectSlot(parseInt(k,10)-1); }
+  const hotkeys = {'&':0,'é':1,'"':2,"'":3,'(':4,'-':5,'è':6,'_':7,'ç':8};
+  if(hotkeys[e.key] !== undefined){
+    selectSlot(hotkeys[e.key]);
+  }
 });
 window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
 document.getElementById('closeCraft').onclick = ()=> toggleCraft(false);
@@ -1039,7 +1112,6 @@ function doInteract(){
     target.hp -= dmg;
     spawnParticles(target.x,target.y,'#8b0000',8);
     if(target.hp<=0){ zombies.splice(zombies.indexOf(target),1); spawnParticles(target.x,target.y,'#4a1010',14); }
-    else
     return;
   }
 
@@ -1050,7 +1122,7 @@ function doInteract(){
       ent.hp -= dmg;
       spawnParticles(ent.x,ent.y,'#5a3a1e',10);
       if(ent.hp<=0) defeatEnt();
-      else return;
+      return;
     }
   }
 
@@ -1062,7 +1134,7 @@ function doInteract(){
       boss.hp -= dmg;
       spawnParticles(boss.x,boss.y,'#7ecbff',10);
       if(boss.hp<=0) defeatBoss2();
-      else return;
+      return;
     }
   }
 
@@ -1079,7 +1151,6 @@ function doInteract(){
           w.provoked = true; w.provokeTimer = 20;
         }
       }
-     
     } else if(animalTarget.territorial){
       animalTarget.provoked = true;
       animalTarget.provokeTimer = 12;
@@ -1088,8 +1159,6 @@ function doInteract(){
     }
     spawnParticles(animalTarget.x,animalTarget.y,'#7a3b2e',6);
     if(animalTarget.hp<=0){
-      const label = ANIMAL_LABELS[animalTarget.kind] || 'Animal';
-      pushMsg(`${label} éliminé.`);
       dropAnimalLoot(animalTarget);
       animals.splice(animals.indexOf(animalTarget),1);
       spawnParticles(animalTarget.x,animalTarget.y,'#4a1010',10);
@@ -1097,45 +1166,6 @@ function doInteract(){
     }
     return;
   }
-
-  const {tx,ty} = facingTile();
-  if(!inBounds(tx,ty)) return;
-  const o = objects[idx(tx,ty)];
-  if(!o){
-    const w = wires[idx(tx,ty)];
-    if(w){
-      if(w.kind==='wire') pushMsg(w.powered ? 'Un câble électrique (alimenté) ⚡' : 'Un câble électrique.');
-      else if(w.kind==='timer') pushMsg(`Minuterie directionnelle (${w.outputOn?'signal transmis ⚡':(w.charging?'en compte à rebours…':'en attente')}).`);
-      pushMsg('Maj+E pour le récupérer.');
-      return;
-    }
-    
-    return;
-  }
-
-  if(o.type==='tree' || o.type==='rock'){
-    pushMsg('Maj+E pour récolter.');
-  } else if(o.type==='bush'){
-    pushMsg(o.berries ? 'Maj+E pour cueillir les baies.' : 'Ce buisson est vide pour le moment.');
-  } else if(o.type==='wall'){
-    pushMsg('Un mur. Maj+E pour le récupérer.');
-  } else if(o.type==='sticky_block'){
-    pushMsg('Un bloc collant : il accroche les blocs voisins. Maj+E pour le récupérer.');
-  } else if(o.type==='campfire'){
-    pushMsg("C'est un feu de camp (Maj+E pour le récupérer).");
-  } else if(o.type==='lever'){
-    o.on = !o.on;
-    pushMsg(o.on ? 'Levier activé ⚡' : 'Levier désactivé');
-  } else if(o.type==='door'){
-    pushMsg(o.open ? "Cette porte est alimentée et ouverte (Maj+E pour la récupérer)." : "Cette porte est fermée, alimentez-la via un circuit (Maj+E pour la récupérer).");
-  } else if(o.type==='piston'){
-    pushMsg('Un piston. Alimentez-le avec un levier relié par du fil (Maj+E pour le récupérer).');
-  } else if(o.type==='piston_sticky'){
-    pushMsg('Un piston collant : il tire les blocs en se rétractant. Maj+E pour le récupérer.');
-  } else if(o.type==='plate'){
-    pushMsg('Une plaque de pression, elle réagit toute seule. Maj+E pour la récupérer.');
-  }
-  updateHUD();
 }
 
 function dropAnimalLoot(a){
@@ -1143,16 +1173,14 @@ function dropAnimalLoot(a){
     const n = randi(1,2);
     const leftover = addItem('hide', n);
     if(leftover>0) spawnDrop(a.x,a.y,'hide',leftover);
-    pushMsg(`+${n} peau 🟤`);
   } else if(a.kind==='monkey'){
     const leftover = addItem('feather',1);
     if(leftover>0) spawnDrop(a.x,a.y,'feather',leftover);
   } else if(a.kind==='crocodile'){
     const leftover = addItem('hide',1);
     if(leftover>0) spawnDrop(a.x,a.y,'hide',leftover);
-  } else if(a.kind==='frog'){
-    // rien, animal inoffensif purement décoratif
   }
+  // le crapaud (frog) est purement décoratif et ne donne rien.
 }
 
 // Maj+E : récolte (arbres/pierre/baies), manger l'objet sélectionné, casser un mécanisme posé.
@@ -1168,11 +1196,9 @@ function harvestTree(tx,ty,o){
     const gain = 2 + axeTier*2;
     const leftover = addItem('wood', gain);
     if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'wood',leftover);
-    pushMsg(`+${gain} bois 🪵`);
     if(Math.random()<0.4){
       const sLeft = addItem('sapling',1);
       if(sLeft>0) spawnDrop(tx*TILE+16,ty*TILE+16,'sapling',sLeft);
-      pushMsg("+1 pousse d'arbre 🌱");
     }
     forestBalance = clamp(forestBalance-1, 0, FOREST_BALANCE_MAX);
     if(forestBalance<=0 && !ent) spawnEnt();
@@ -1181,7 +1207,7 @@ function harvestTree(tx,ty,o){
 }
 function harvestRock(tx,ty,o){
   const pickTier = hasTool('pick');
-  if(pickTier<1){ pushMsg("Il vous faut une pioche pour miner !"); return; }
+  if(pickTier<1){ return; }
   o.hp -= pickTier;
   spawnParticles(tx*TILE+16, ty*TILE+16, '#7c7c7c', 6);
   if(o.hp<=0){
@@ -1189,7 +1215,6 @@ function harvestRock(tx,ty,o){
     const gain = 2 + pickTier*2;
     const leftover = addItem('stone', gain);
     if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'stone',leftover);
-    pushMsg(`+${gain} pierre 🪨`);
   }
   updateHUD();
 }
@@ -1197,7 +1222,6 @@ function harvestBush(tx,ty){
   objects[idx(tx,ty)] = {type:'bush', hp:1, maxHp:1, berries:false};
   const leftover = addItem('berry',3);
   if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'berry',leftover);
-  pushMsg('+2 baies 🍓');
   spawnParticles(tx*TILE+16, ty*TILE+16, '#c0392b', 6);
   setTimeout(()=>{ const cur=objects[idx(tx,ty)]; if(cur && cur.type==='bush') cur.berries=true; }, 20000);
   updateHUD();
@@ -1208,7 +1232,6 @@ function breakPlacedAt(tx,ty,o){
   objects[idx(tx,ty)] = null;
   const leftover = addItem(itemId,1);
   if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,itemId,leftover);
-  pushMsg(`${ITEM_DEFS[itemId].name} récupéré(e) 🔧`);
   spawnParticles(tx*TILE+16,ty*TILE+16,'#bbbbbb',7);
   updateHUD();
 }
@@ -1218,7 +1241,6 @@ function breakWireAt(tx,ty,w){
   wires[idx(tx,ty)] = null;
   const leftover = addItem(itemId,1);
   if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,itemId,leftover);
-  pushMsg(`${ITEM_DEFS[itemId].name} récupéré(e) 🔧`);
   spawnParticles(tx*TILE+16,ty*TILE+16,'#ffb84a',7);
   updateHUD();
 }
@@ -1244,24 +1266,22 @@ function doHarvestOrEat(){
 
 function eatSelected(){
   const s = player.slots[selectedSlot];
-  if(!s){  return; }
+  if(!s) return;
   const def = ITEM_DEFS[s.id];
-  if(!def || def.cat!=='food'){  return; }
+  if(!def || def.cat!=='food') return;
   removeItem(s.id,1);
   player.hunger = Math.min(player.maxHunger, player.hunger+def.hunger);
   player.hp = Math.min(player.maxHp, player.hp+def.heal);
-  pushMsg(`${def.name} mangé(e) ${def.icon}`);
   updateHUD();
 }
 
 function dropSelected(){
   if(craftOpen || invOpen) return;
   const s = player.slots[selectedSlot];
-  if(!s){ pushMsg('Rien à jeter.'); return; }
+  if(!s) return;
   const {dx,dy} = facingOffset();
   spawnDrop(player.x+dx*24, player.y+dy*24, s.id, s.count);
   player.slots[selectedSlot] = null;
-  pushMsg(`${ITEM_DEFS[s.id].name} jeté(e) au sol.`);
   updateHUD();
 }
 
@@ -1277,8 +1297,13 @@ function makePlaceObject(id, dir){
     case 'piston_sticky': return {type:'piston_sticky', dir, extended:false, powered:false};
     case 'sticky_block': return {type:'sticky_block', hp:4, maxHp:4};
     case 'plate': return {type:'plate', active:false};
-     case 'observer': return {type:'observer',dir, powered:false, pulse:0, lastState:null };
-    case 'door': return {type:'door', open:false};
+    case 'observer': return {type:'observer',dir, powered:false, pulse:0, lastState:null };
+    case 'door':
+    return {
+        type:'door',
+        open:false,
+        closeTimer:0
+    };
     case 'sapling': return {type:'sapling', hp:1, maxHp:1, growTimer:rand(45,75)};
   }
   return null;
@@ -1291,9 +1316,9 @@ function makePlaceObject(id, dir){
 // sans qu'aucun fil ne soit visible.
 function placeWireItem(id){
   const {tx,ty} = facingTile();
-  if(!inBounds(tx,ty)){ pushMsg('Impossible de poser ici.'); return; }
-  if(tiles[idx(tx,ty)]===TILE_TYPES.WATER){ pushMsg("Impossible de poser dans l'eau."); return; }
-  if(wires[idx(tx,ty)]){ pushMsg('Un câble est déjà présent sur cette case.'); return; }
+  if(!inBounds(tx,ty)) return;
+  if(tiles[idx(tx,ty)]===TILE_TYPES.WATER) return;
+  if(wires[idx(tx,ty)]) return;
 
   if(id==='wire'){
     wires[idx(tx,ty)] = {kind:'wire', powered:false};
@@ -1317,22 +1342,20 @@ function placeWireItem(id){
   slot.count -= 1;
   if(slot.count<=0) player.slots[selectedSlot] = null;
 
-  const hidden = !!objects[idx(tx,ty)];
-  pushMsg(hidden ? `${ITEM_DEFS[id].name} posé(e), caché(e) sous l'objet existant.` : `${ITEM_DEFS[id].name} posé(e).`);
   updateHUD();
 }
 
 function placeSelected(){
   if(craftOpen || invOpen) return;
   const slot = player.slots[selectedSlot];
-  if(!slot){  return; }
+  if(!slot) return;
   const def = ITEM_DEFS[slot.id];
-  if(!def || (def.cat!=='place' && def.cat!=='place_wire')){ pushMsg("Cet objet ne peut pas être posé."); return; }
+  if(!def || (def.cat!=='place' && def.cat!=='place_wire')) return;
 
   if(def.cat==='place_wire'){ placeWireItem(slot.id); return; }
 
   const {tx,ty} = facingTile();
-  if(!inBounds(tx,ty) || tileSolid(tx,ty) || objects[idx(tx,ty)]){ pushMsg('Impossible de poser ici.'); return; }
+  if(!inBounds(tx,ty) || tileSolid(tx,ty) || objects[idx(tx,ty)]) return;
   const obj = makePlaceObject(slot.id, facingOffset());
   objects[idx(tx,ty)] = obj;
   slot.count -= 1;
@@ -1340,9 +1363,6 @@ function placeSelected(){
   if(slot.id==='sapling'){
     saplings.push(idx(tx,ty));
     forestBalance = clamp(forestBalance+1, 0, FOREST_BALANCE_MAX);
-    pushMsg(`Pousse plantée 🌱 (Équilibre forêt : ${forestBalance}/${FOREST_BALANCE_MAX})`);
-  } else {
-    pushMsg(`${def.name} posé(e).`);
   }
   updateHUD();
 }
@@ -1450,6 +1470,39 @@ function validateAndMove(groupList, dx, dy){
 }
 
 /* =========================================================
+   PLAQUES DE PRESSION
+========================================================= */
+// Une plaque devient active dès qu'une entité (joueur, animal ou zombi) se
+// trouve suffisamment proche de son centre, et redevient inactive dès que
+// plus personne ne s'y trouve. C'est cette valeur "active" qui est ensuite
+// lue par updatePower() pour alimenter tout circuit connecté.
+const PLATE_TRIGGER_DIST = 16;
+
+function updatePlates(){
+  for(let i=0;i<objects.length;i++){
+    const o = objects[i];
+    if(!o || o.type!=='plate') continue;
+    const tx = i % WORLD_W, ty = Math.floor(i / WORLD_W);
+    const cx = tx*TILE+16, cy = ty*TILE+16;
+
+    let pressed = dist(player.x, player.y, cx, cy) < PLATE_TRIGGER_DIST;
+
+    if(!pressed){
+      for(const a of animals){
+        if(dist(a.x, a.y, cx, cy) < PLATE_TRIGGER_DIST){ pressed = true; break; }
+      }
+    }
+    if(!pressed){
+      for(const z of zombies){
+        if(dist(z.x, z.y, cx, cy) < PLATE_TRIGGER_DIST){ pressed = true; break; }
+      }
+    }
+
+    o.active = pressed;
+  }
+}
+
+/* =========================================================
    CIRCUIT : propagation du courant, plaques, pistons, portes, minuteries
 ========================================================= */
 let powerTimer = 0;
@@ -1478,13 +1531,41 @@ function tileFeedsInto(fromTx,fromTy,toTx,toTy,poweredArr){
   }
   return false;
 }
+function expandWolfPack(alpha){
+  if(!alpha || !alpha.alpha) return;
 
+  const MAX_MEMBERS = 8;
+  const JOIN_DISTANCE = 220;
+
+  if(!alpha.packMembers) alpha.packMembers=[];
+
+  for(const w of animals){
+
+    if(alpha.packMembers.length >= MAX_MEMBERS) break;
+
+    if(
+      w.kind==='wolf' &&
+      !w.alpha &&
+      !w.packLeader &&
+      w !== alpha
+    ){
+
+      const d = dist(alpha.x,alpha.y,w.x,w.y);
+
+      if(d < JOIN_DISTANCE){
+
+        w.packLeader = alpha;
+        w.packId = alpha.packId;
+
+        alpha.packMembers.push(w);
+
+        console.log("Loup rejoint la meute");
+      }
+    }
+  }
+}
 function updatePower(dt){
   powerTimer -= dt;
-
- 
- 
-
   if(powerTimer > 0) return;
   powerTimer = POWER_TICK;
 
@@ -1618,7 +1699,20 @@ if(no && no.type==='observer' && no.powered){
 }
 
       }
-      if(o.type==='door'){ o.open = p; }
+      if(o.type === 'door'){
+
+    if(p){
+        o.open = true;
+        o.closeTimer = 5; // nombre de ticks avant fermeture
+    }else{
+        if(o.closeTimer > 0){
+            o.closeTimer--;
+        }else{
+            o.open = false;
+        }
+    }
+
+}
       if(o.type==='piston' || o.type==='piston_sticky'){
         o.powered = p;
         if(p && !o.extended){
@@ -1635,10 +1729,10 @@ if(no && no.type==='observer' && no.powered){
             if(grp2!==null) validateAndMove(grp2, -o.dir.dx, -o.dir.dy);
           }
         }
-        
+
       }
     }
-    
+
   }
   // Mise à jour finale des observateurs après les mouvements de pistons
 for(let i=0;i<objects.length;i++){
@@ -1654,7 +1748,6 @@ for(let i=0;i<objects.length;i++){
   else if(o.lastX !== tx || o.lastY !== ty){
     o.powered = true;
     o.pulse = 3;
-    console.log("OBSERVATEUR DEPLACE");
   }
 
   o.lastX = tx;
@@ -1679,21 +1772,18 @@ for(let i=0;i<objects.length;i++){
   if(o.lastState !== undefined && state !== o.lastState){
     o.powered = true;
     o.pulse = 10;
-    console.log("Observer détecte", state);
   }
 
   o.lastState = state;
 
   if(o.pulse > 0){
     o.pulse--;
-  }if(o.pulse > 0){
-  o.pulse--;
+  }
+  else{
+    o.powered = false;
+  }
 }
-else{
-  o.powered = false;
-}
-}
-  
+
 }
 
 /* =========================================================
@@ -1744,7 +1834,6 @@ function spawnEnt(){
     x:ex, y:ey, hp:160, maxHp:160, speed:48,
     hitCd:0, rootTimer:2.5
   };
-  pushMsg("⚠️ La forêt gronde... un Ent s'éveille pour se venger !");
 }
 function breakBlockingObject(tx,ty){
   if(!inBounds(tx,ty)) return;
@@ -1791,7 +1880,6 @@ function defeatEnt(){
   const dropCount = randi(3,5);
   const leftover = addItem('sapling', dropCount);
   if(leftover>0) spawnDrop(ent.x,ent.y,'sapling',leftover);
-  pushMsg(`🌱 L'Ent est vaincu ! +${dropCount} pousses d'arbre`);
   ent = null;
   forestBalance = clamp(4, 0, FOREST_BALANCE_MAX);
   updateHUD();
@@ -1870,17 +1958,11 @@ function enterDungeon2(){
   if(!dungeon2.defeated && !dungeon2.sealed){
     dungeon2.sealed = true;
     spawnBoss2();
-    pushMsg("⚠️ Une lourde présence vous encercle... la sortie se referme.");
-  } else if(dungeon2.defeated){
-    pushMsg('Vous entrez dans la salle silencieuse.');
-  } else {
-    pushMsg('Le Gardien Lamé vous attend toujours...');
   }
 }
 function exitDungeon2(){
   teleportPlayer(dungeon2.entranceTx, dungeon2.entranceTy-1);
   inDungeon2 = false;
-  pushMsg('Vous ressortez à la lumière du jour.');
 }
 
 /* =========================================================
@@ -1899,7 +1981,6 @@ function spawnBoss2(){
   document.getElementById('bossBarWrap').style.display = 'flex';
   document.getElementById('bossName').textContent = 'LE GARDIEN LAMÉ';
   document.getElementById('bossBarFill').style.width = '100%';
-  pushMsg('⚔️ Le Gardien Lamé dégaine ses lames !');
 }
 function updateBoss2(dt){
   if(!dungeon2 || !dungeon2.boss) return;
@@ -1950,7 +2031,6 @@ function updateBoss2(dt){
         player.hp -= 24; player.hurtFlash = 0.3; player.staggerTimer = 1.1;
         spawnParticles(player.x,player.y,'#7ecbff',12);
         b.slashHitDone = true;
-        pushMsg('Vous êtes frappé de plein fouet et déséquilibré !');
         if(player.hp<=0) killPlayer('Frappé par la lame du Gardien');
       }
     }
@@ -1983,10 +2063,8 @@ function defeatBoss2(){
   dungeon2.sealed = false;
   objects[idx(dungeon2.exitTx,dungeon2.exitTy)] = {type:'dungeon2_exit'};
   document.getElementById('bossBarWrap').style.display = 'none';
-  pushMsg('🏆 Le Gardien Lamé est vaincu ! Une ouverture apparaît derrière lui.');
   const leftover = addItem('gem',1);
   if(leftover>0) spawnDrop(b.x,b.y,'gem',leftover);
-  pushMsg('💎 Une gemme mystérieuse tombe au sol.');
   updateHUD();
 }
 function drawBoss2(camX,camY){
@@ -2056,11 +2134,8 @@ function stealFromPlayer(a){
   if(stealables.length===0) return false;
   const i = stealables[randi(0,stealables.length-1)];
   const s = player.slots[i];
-  const label = ITEM_DEFS[s.id].name;
   s.count -= 1;
   if(s.count<=0) player.slots[i] = null;
-  const kindLabel = ANIMAL_LABELS[a.kind] || 'Animal';
-  pushMsg(`${kindLabel} a volé : ${label} !`);
   updateHUD();
   return true;
 }
@@ -2069,11 +2144,27 @@ function updateAnimals(dt){
   for(let ai=animals.length-1; ai>=0; ai--){
     const a = animals[ai];
 
+
+// Nettoyage des chefs de meute disparus
+if(a.kind==='wolf' && a.packLeader){
+  if(!animals.includes(a.packLeader)){
+    a.packLeader = null;
+  }
+}
+
     // Les animaux trop éloignés du joueur disparaissent (au-delà de ANIMAL_DESPAWN_DIST_TILES blocs).
     if(dist(a.x,a.y,player.x,player.y) > ANIMAL_DESPAWN_DIST_PX){
-      animals.splice(ai,1);
-      continue;
-    }
+
+  if(a === currentWolfAlpha){
+    currentWolfAlpha = null;
+  }
+
+  animals.splice(ai,1);
+  continue;
+}
+if(a.alpha){
+  expandWolfPack(a);
+}
 
     if(a.fleeTimer>0) a.fleeTimer -= dt;
     if(a.provokeTimer>0){ a.provokeTimer -= dt; if(a.provokeTimer<=0) a.provoked=false; }
@@ -2097,7 +2188,6 @@ function updateAnimals(dt){
       if(a.submerged){
         if(dToPlayer < a.aggroRange*0.55){
           a.submerged = false; a.burstTimer = 2.2;
-          pushMsg('Un crocodile surgit de l\'eau !');
         }
       } else {
         if(a.burstTimer>0){
@@ -2169,32 +2259,122 @@ function updateAnimals(dt){
         }
         continue;
       }
-      if(!a.huntTarget || a.huntTarget.hp<=0 || !animals.includes(a.huntTarget)){
-        let best=null, bestD=240;
-        for(const p of animals){
-          if(!p.prey) continue;
-          const dd = dist(a.x,a.y,p.x,p.y);
-          if(dd<bestD){ bestD=dd; best=p; }
-        }
-        a.huntTarget = best;
+      // Loup alpha : choisit la cible
+if(a.kind==='wolf' && a.alpha){
+
+  if(!a.huntTarget || a.huntTarget.hp<=0 || !animals.includes(a.huntTarget)){
+
+    let best=null;
+    let bestD=a.aggroRange;
+
+    for(const p of animals){
+      if(!p.prey) continue;
+
+      const dd=dist(a.x,a.y,p.x,p.y);
+
+      if(dd<bestD){
+        bestD=dd;
+        best=p;
       }
+    }
+
+    a.huntTarget=best;
+  }
+
+}
+
+
+// Loups normaux : suivent la chasse de l'alpha
+else if(a.kind==='wolf' && !a.alpha && a.packLeader){
+
+  if(a.packLeader.huntTarget &&
+     a.packLeader.huntTarget.hp>0 &&
+     animals.includes(a.packLeader.huntTarget)){
+
+    a.huntTarget = a.packLeader.huntTarget;
+
+  }else{
+
+    a.huntTarget = null;
+
+  }
+
+}
+
+
+// Sécurité pour les loups sans alpha
+else if(a.kind==='wolf'){
+
+  if(!a.huntTarget || a.huntTarget.hp<=0 || !animals.includes(a.huntTarget)){
+
+    let best=null,bestD=240;
+
+    for(const p of animals){
+      if(!p.prey) continue;
+
+      const dd=dist(a.x,a.y,p.x,p.y);
+
+      if(dd<bestD){
+        bestD=dd;
+        best=p;
+      }
+    }
+
+    a.huntTarget=best;
+  }
+
+}
       if(a.huntTarget){
         const t = a.huntTarget;
         moveAnimal(a, Math.atan2(t.y-a.y, t.x-a.x), a.speed, dt);
         a.hitCd -= dt;
-        if(dist(a.x,a.y,t.x,t.y) < 18 && a.hitCd<=0){
-          t.hp -= 10; a.hitCd = 0.6;
+       if(dist(a.x,a.y,t.x,t.y) < 18 && a.hitCd<=0){
+
+  t.hp -= a.dmg || 10;
+  a.hitCd = 0.6;
           spawnParticles(t.x,t.y,'#7a3b2e',5);
           if(t.hp<=0){
             spawnParticles(t.x,t.y,'#4a1010',10);
             const ti = animals.indexOf(t);
-            if(ti>=0) animals.splice(ti,1);
+if(ti>=0) animals.splice(ti,1);
+
+if(t === currentWolfAlpha){
+  currentWolfAlpha = null;
+}
             a.huntTarget = null;
           }
         }
       } else {
-        wanderAnimal(a, dt);
-      }
+
+  if(a.packLeader){
+
+    const d = dist(a.x,a.y,a.packLeader.x,a.packLeader.y);
+
+    if(d > 180){
+
+      moveAnimal(
+        a,
+        Math.atan2(
+          a.packLeader.y-a.y,
+          a.packLeader.x-a.x
+        ),
+        a.speed,
+        dt
+      );
+
+    }else{
+
+      wanderAnimal(a,dt);
+
+    }
+
+  }else{
+
+    wanderAnimal(a,dt);
+
+  }
+
+}
       continue;
     }
 
@@ -2202,7 +2382,7 @@ function updateAnimals(dt){
     // un fruit sur le joueur, et s'approche pour tenter un vol furtif.
     if(a.thief && a.ranged){
       if(dToPlayer < 260){
-        if(a.throwCd<=0 && dToPlayer > 60){
+        if(a.throwCd<=0 && dToPlayer > 100){
           a.throwCd = rand(2.5,4);
           const ang = Math.atan2(player.y-a.y, player.x-a.x);
           projectiles.push({x:a.x,y:a.y,vx:Math.cos(ang)*170,vy:Math.sin(ang)*170,life:2,dmg:4,root:false});
@@ -2300,6 +2480,7 @@ function updateAnimals(dt){
       spawnAnimal('frog');
     }
   }
+  
 }
 
 function killPlayer(reason){
@@ -2324,8 +2505,19 @@ function updatePlayer(dt){
 
   const nx = player.x + mx*player.speed*spdMult*dt;
   const ny = player.y + my*player.speed*spdMult*dt;
-  if(!tileSolid(Math.floor(nx/TILE), Math.floor(player.y/TILE))) player.x = nx;
-  if(!tileSolid(Math.floor(player.x/TILE), Math.floor(ny/TILE))) player.y = ny;
+  const nextXTile = Math.floor(nx/TILE);
+  const curYTile = Math.floor(player.y/TILE);
+
+  if(!tileSolid(nextXTile,curYTile) && !doorSolidAt(nx,player.y)){
+    player.x = nx;
+  }
+
+  const curXTile = Math.floor(player.x/TILE);
+  const nextYTile = Math.floor(ny/TILE);
+
+  if(!tileSolid(curXTile,nextYTile) && !doorSolidAt(player.x,ny)){
+    player.y = ny;
+  }
   player.x = clamp(player.x, TILE, WORLD_W*TILE-TILE);
   if(inDungeon2){
     player.y = clamp(player.y, BACKSTAGE_Y*TILE, WORLD_H*TILE-TILE);
@@ -2342,10 +2534,7 @@ function updatePlayer(dt){
       const eang = Math.atan2(player.y-ent.y, player.x-ent.x);
       player.x = ent.x + Math.cos(eang)*ELEASH;
       player.y = ent.y + Math.sin(eang)*ELEASH;
-      if(!(ent.leashMsgCd>0)) pushMsg("Les racines de l'Ent vous retiennent, impossible de fuir !");
-      ent.leashMsgCd = 3;
     }
-    if(ent.leashMsgCd>0) ent.leashMsgCd -= dt;
   }
 
   player.hunger -= dt*0.55;
@@ -2585,11 +2774,37 @@ function drawObject(tx,ty,o,camX,camY){
     ctx.strokeStyle = '#3e2712'; ctx.lineWidth=2;
     ctx.strokeRect(sx+5,sy+5,TILE-10,TILE-10);
   } else if(o.type==='door'){
-    ctx.fillStyle = '#7a5230';
-    if(o.open){ ctx.fillRect(sx+2,sy+3,6,TILE-6); }
-    else { ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6); ctx.strokeStyle='#3e2712'; ctx.lineWidth=2; ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6); }
-    ctx.fillStyle = o.open ? '#7ac142' : '#c0392b';
-    ctx.beginPath(); ctx.arc(sx+4,cy,2,0,Math.PI*2); ctx.fill();
+    // Porte façon Minecraft vue du dessus : un battant fin, pivoté autour d'un
+    // gond fixe. Fermée, il barre le passage au centre de la case. Ouverte,
+    // il a pivoté de 90° et se retrouve plaqué contre le mur, dégageant le
+    // passage.
+    const vertical = !!(o.dir && o.dir.dx !== 0);
+    const th = 3;      // épaisseur du battant
+    const inset = 3;   // marge par rapport au bord de la case
+    const span = TILE - inset*2;
+
+    let hingeX, hingeY, panelX, panelY, panelW, panelH;
+    if(vertical){
+      hingeX = cx; hingeY = sy+inset;
+      if(o.open){ panelX = sx+inset; panelY = hingeY;        panelW = span; panelH = th; }
+      else      { panelX = hingeX-th/2; panelY = hingeY;     panelW = th;   panelH = span; }
+    } else {
+      hingeX = sx+inset; hingeY = cy;
+      if(o.open){ panelX = hingeX; panelY = sy+inset;        panelW = th;   panelH = span; }
+      else      { panelX = hingeX; panelY = hingeY-th/2;     panelW = span; panelH = th; }
+    }
+
+    ctx.fillStyle = o.open ? '#8a6a44' : '#7a5230';
+    ctx.fillRect(panelX, panelY, panelW, panelH);
+    ctx.strokeStyle = '#3e2712'; ctx.lineWidth = 1;
+    ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+    // Gond (petit poteau fixe autour duquel le battant pivote).
+    ctx.fillStyle = '#241608';
+    ctx.fillRect(hingeX-2, hingeY-2, 4, 4);
+
+    // Voyant d'état.
+    
   } else if(o.type==='piston'){
     ctx.fillStyle = '#6d6d6d'; ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6);
     ctx.strokeStyle = '#3e2712'; ctx.lineWidth=2; ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
@@ -2634,7 +2849,7 @@ function drawObject(tx,ty,o,camX,camY){
     ctx.fill();
   }
 }
-  
+
   else if(o.type==='sapling'){
     ctx.fillStyle = '#3e2712'; ctx.fillRect(cx-2, sy+22, 4, 7);
     ctx.fillStyle = '#4caf3f';
@@ -2696,11 +2911,34 @@ function drawAnimal(a,camX,camY){
     ctx.beginPath(); ctx.moveTo(sx+6,sy); ctx.quadraticCurveTo(sx+16,sy-4, sx+13,sy-14); ctx.stroke();
     ctx.fillStyle='#8a3a1e'; ctx.beginPath(); ctx.arc(sx+13,sy-14,2.4,0,Math.PI*2); ctx.fill();
   } else if(a.kind==='wolf'){
-    ctx.fillStyle= a.provoked ? '#d69090' : '#bfc3c6';
-    ctx.beginPath(); ctx.ellipse(sx,sy,13,8,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle= a.provoked ? '#b06060' : '#9a9ea1'; ctx.fillRect(sx-16,sy-5,8,7);
-    ctx.fillStyle='#2a2a2a'; ctx.fillRect(sx-14,sy-3,2,2);
-  } else if(a.kind==='fox'){
+    // Loup alpha : plus imposant et plus sombre
+    if(a.alpha){
+      ctx.fillStyle = a.provoked ? '#b85c5c' : '#555b65';
+      ctx.beginPath();
+      ctx.ellipse(sx,sy,16,10,0,0,Math.PI*2);
+      ctx.fill();
+
+      // marque rouge sur le dos
+     
+
+    }else{
+      ctx.fillStyle= a.provoked ? '#d69090' : '#bfc3c6';
+      ctx.beginPath();
+      ctx.ellipse(sx,sy,13,8,0,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle= a.provoked ? '#b06060' : '#9a9ea1';
+    ctx.fillRect(sx-16,sy-5,8,7);
+
+    ctx.fillStyle='#2a2a2a';
+    ctx.fillRect(sx-14,sy-3,2,2);
+}
+  
+  
+  
+  
+  else if(a.kind==='fox'){
     ctx.fillStyle='#d9682e';
     ctx.beginPath(); ctx.ellipse(sx,sy,9,6,0,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='#c14f1f'; ctx.beginPath(); ctx.moveTo(sx-9,sy-2); ctx.lineTo(sx-16,sy-1); ctx.lineTo(sx-9,sy+4); ctx.closePath(); ctx.fill();
@@ -2843,6 +3081,7 @@ function loop(now){
     updateBoss2(dt);
     updateProjectiles(dt);
     updateSaplings(dt);
+    updatePlates();
     updatePower(dt);
     updateDrops(dt);
     updateParticles(dt);
@@ -2868,7 +3107,6 @@ function startGame(){
   buildInvGridDOM();
   started = true;
   updateHUD();
-  
 }
 
 startGame();
