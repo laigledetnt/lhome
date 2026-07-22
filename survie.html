@@ -929,7 +929,7 @@ function tileSolid(tx,ty){
   const o = objects[idx(tx,ty)];
   if(!o) return false;
   // Les arbres ne bloquent plus les déplacements (joueur ou animaux).
-  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block' || o.type==='dungeon2_wall' || o.type==='dungeon2_cube') return true;
+  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block' || o.type==='dungeon2_wall' ) return true;
   if(o.type==='door') return false;
   return false;
 }
@@ -2181,10 +2181,26 @@ function updateBoss2(dt){
     const d = dist(b.x,b.y,player.x,player.y);
     const ang = Math.atan2(player.y-b.y, player.x-b.x);
     const spd = b.enraged ? b.speed*1.25 : b.speed;
-    const nx = b.x+Math.cos(ang)*spd*dt;
-    const ny = b.y+Math.sin(ang)*spd*dt;
-    if(!tileSolid(Math.floor(nx/TILE),Math.floor(b.y/TILE))) b.x = nx;
-    if(!tileSolid(Math.floor(b.x/TILE),Math.floor(ny/TILE))) b.y = ny;
+    const nx = b.x + Math.cos(ang) * spd * dt;
+const ny = b.y + Math.sin(ang) * spd * dt;
+
+const ntx = Math.floor(nx / TILE);
+const nty = Math.floor(b.y / TILE);
+
+if(tileSolid(ntx, nty))
+    breakBlockingObject(ntx, nty);
+
+if(!tileSolid(ntx, nty))
+    b.x = nx;
+
+const mtx = Math.floor(b.x / TILE);
+const mty = Math.floor(ny / TILE);
+
+if(tileSolid(mtx, mty))
+    breakBlockingObject(mtx, mty);
+
+if(!tileSolid(mtx, mty))
+    b.y = ny;
 
     b.hitCd -= dt;
     if(d<28 && b.hitCd<=0){
@@ -2211,10 +2227,26 @@ function updateBoss2(dt){
   else if(b.mode==='slash'){
     b.modeTimer -= dt;
     const dashSpeed = b.enraged ? 480 : 380;
-    const nx = b.x + b.slashDir.dx*dashSpeed*dt;
-    const ny = b.y + b.slashDir.dy*dashSpeed*dt;
-    if(!tileSolid(Math.floor(nx/TILE),Math.floor(b.y/TILE))) b.x = nx;
-    if(!tileSolid(Math.floor(b.x/TILE),Math.floor(ny/TILE))) b.y = ny;
+   const nx = b.x + b.slashDir.dx * dashSpeed * dt;
+const ny = b.y + b.slashDir.dy * dashSpeed * dt;
+
+const ntx = Math.floor(nx / TILE);
+const nty = Math.floor(b.y / TILE);
+
+if(tileSolid(ntx, nty))
+    breakBlockingObject(ntx, nty);
+
+if(!tileSolid(ntx, nty))
+    b.x = nx;
+
+const mtx = Math.floor(b.x / TILE);
+const mty = Math.floor(ny / TILE);
+
+if(tileSolid(mtx, mty))
+    breakBlockingObject(mtx, mty);
+
+if(!tileSolid(mtx, mty))
+    b.y = ny;
     if(!b.slashHitDone){
       const toPx = player.x-b.x, toPy = player.y-b.y;
       const along = toPx*b.slashDir.dx + toPy*b.slashDir.dy;
