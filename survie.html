@@ -609,6 +609,7 @@ function generateWorld(){
   for(let i=0;i<3;i++) spawnAnimal('deer');
   for(let i=0;i<5;i++) spawnAnimal('scorpion');
   for(let i=0;i<2;i++) spawnWolfPack(randi(5,6));
+  //or(let i=0;i<5;i++) spawnAnimal('');
   for(let i=0;i<2;i++) spawnAnimal('fox');
   for(let i=0;i<2;i++) spawnAnimal('bear');
   for(let i=0;i<5;i++) spawnAnimal('crocodile');
@@ -831,47 +832,38 @@ function spawnWolfPack(count){
 
   let alphaWolf = null;
   const packMembers = [];
+  let alphaAlreadyAssigned = (currentWolfAlpha !== null); // un alpha existe déjà ailleurs ? on n'en recrée pas.
 
   for(let i=0;i<count;i++){
-
-    const isAlpha = (currentWolfAlpha === null && i===0);
-
-    const def = isAlpha ? ANIMAL_DEFS.wolfAlpha : ANIMAL_DEFS.wolf;
 
     const ox = clamp(tx+randi(-4,4),1,WORLD_W-2);
     const oy = clamp(ty+randi(-4,4),1,OVERWORLD_H-2);
 
-    if(tileSolid(ox,oy)) continue;
+    if(tileSolid(ox,oy)) continue; // case bloquée : on passe au loup suivant, PAS de perte de l'alpha
+
+    const isAlpha = !alphaAlreadyAssigned; // le premier loup placé avec succès devient l'alpha
+
+    const def = isAlpha ? ANIMAL_DEFS.wolfAlpha : ANIMAL_DEFS.wolf;
 
     const wolf={
       kind:'wolf',
-
       alpha:isAlpha,
       packId,
-
       packLeader:null,
       packMembers:[],
-
       x:ox*TILE+16,
       y:oy*TILE+16,
-
       hp:def.hp,
       maxHp:def.hp,
-
       speed:def.speed,
       dmg:def.dmg,
       aggroRange:def.aggro,
-
       predator:true,
-
       huntTarget:null,
-
       homeX:ox*TILE+16,
       homeY:oy*TILE+16,
-
       wanderAngle:rand(0,Math.PI*2),
       wanderT:rand(0,2),
-
       hitCd:0,
       faceDir:-1
     };
@@ -879,25 +871,21 @@ function spawnWolfPack(count){
     animals.push(wolf);
     packMembers.push(wolf);
 
-
     if(isAlpha){
       alphaWolf = wolf;
       currentWolfAlpha = wolf;
+      alphaAlreadyAssigned = true;
     }
   }
 
-
   // Relie la meute au chef
   if(alphaWolf){
-
     alphaWolf.packMembers = packMembers;
-
     for(const w of packMembers){
       if(w !== alphaWolf){
         w.packLeader = alphaWolf;
       }
     }
-
   }
 }
 function doorSolidAt(px, py){
@@ -1210,7 +1198,7 @@ function doInteract(){
       return;
     }
   }
-  // --- FIN NOUVEAU ---
+  
 
   const range = 42;
   let didAttack = false;
