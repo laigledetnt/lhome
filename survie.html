@@ -156,13 +156,14 @@ html,body{
 
   <div id="hints">
     <div><b>ZQSD/Flèches</b> — se déplacer</div>
-    <div><b>E</b> — attaquer / activer un levier</div>
+    <div><b>E</b> — attaquer / tirer (arc) / activer un levier</div>
     <div><b>Maj+E</b> — récolter (arbres, pierre, baies) / manger / casser un mécanisme</div>
     <div><b>B</b> — poser l'objet sélectionné (replantez vos pousses 🌱 !)</div>
     <div><b>A</b> — jeter l'objet sélectionné</div>
     <div><b>1-9</b> — choisir un emplacement</div>
     <div><b>I</b> — inventaire complet</div>
     <div><b>C</b> — artisanat</div>
+    <div style="margin-top:6px; opacity:.85;">Équipez une hache/pioche/épée/arc dans la main (barre du bas) pour bénéficier de leur effet.</div>
   </div>
 
   <div id="hotbar"></div>
@@ -251,6 +252,8 @@ const ITEM_DEFS = {
   pick_stone:  {icon:'⛏️', name:'Pioche en pierre',    max:1,  cat:'tool', kind:'pick',  tier:2, badge:'🪨'},
   sword_wood:  {icon:'🗡️', name:'Épée en bois',        max:1,  cat:'tool', kind:'sword', tier:1, badge:'🪵'},
   sword_stone: {icon:'🗡️', name:'Épée en pierre',      max:1,  cat:'tool', kind:'sword', tier:2, badge:'🪨'},
+  bow:         {icon:'🏹', name:'Arc',                 max:1,  cat:'tool', kind:'bow',   tier:1},
+  arrow:       {icon:'➶', name:'Flèche',               max:64, cat:'ammo'},
   wall:        {icon:'🧱', name:'Mur',                 max:64, cat:'place'},
   campfire:    {icon:'🔥', name:'Feu de camp',         max:64, cat:'place'},
   lever:       {icon:'🔘', name:'Levier',              max:64, cat:'place'},
@@ -318,7 +321,8 @@ function freshState(){
     hp:100, maxHp:100,
     hunger:300, maxHunger:300,
     slots: new Array(N_SLOTS).fill(null),
-    hurtFlash:0, staggerTimer:0
+    hurtFlash:0, staggerTimer:0,
+    atkCd:0, harvestCd:0
   };
   camera = {x:player.x, y:player.y};
 }
@@ -365,6 +369,8 @@ function countItem(id){
   for(const s of player.slots) if(s && s.id===id) n += s.count;
   return n;
 }
+// Meilleur outil possédé quelque part dans l'inventaire (sert uniquement à
+// l'affichage / à la logique d'artisanat : "j'ai déjà une hache en pierre ?").
 function hasTool(kind){
   let best = 0;
   for(const s of player.slots){
@@ -374,6 +380,29 @@ function hasTool(kind){
     }
   }
   return best;
+}
+// Outil réellement "en main" : uniquement celui actuellement sélectionné
+// dans la barre d'accès rapide. C'est CETTE fonction qui conditionne les
+// effets de jeu (miner, couper, bonus d'attaque, tirer à l'arc) : posséder
+// l'outil ne suffit plus, il faut l'avoir sélectionné.
+function heldTool(kind){
+  const s = player.slots[selectedSlot];
+  if(!s) return 0;
+  const def = ITEM_DEFS[s.id];
+  if(def && def.cat==='tool' && def.kind===kind) return def.tier;
+  return 0;
+}
+
+/* =========================================================
+   MESSAGES A L'ECRAN
+========================================================= */
+function logMsg(text){
+  const log = document.getElementById('msgLog');
+  const div = document.createElement('div');
+  div.textContent = text;
+  log.appendChild(div);
+  setTimeout(()=>{ div.style.transition='opacity .4s'; div.style.opacity='0'; setTimeout(()=>div.remove(),400); }, 1200);
+  while(log.children.length>4) log.removeChild(log.firstChild);
 }
 
 /* =========================================================
@@ -637,23 +666,61 @@ function generateBarrierAndBackstage(){
 }
 
 function setupDungeon2(){
-  const w=13, h=11;
+  // Arène circulaire ("salle sphérique") au lieu d'une salle rectangulaire :
+  // un disque de sol entouré d'un anneau de murs cristallins, avec quelques
+  // cubes indestructibles dispersés à l'intérieur pour servir de couverture
+  // tactique face au boss.
+  const w=19, h=17;
   const ox = randi(4, WORLD_W-4-w);
-  const oy = BACKSTAGE_Y + Math.floor((BACKSTAGE_H-h)/2);
+  const oy = BACKSTAGE_Y + Math.max(0, Math.floor((BACKSTAGE_H-h)/2));
+  const cx = ox + w/2, cy = oy + h/2;
+  const radius = Math.min(w,h)/2 - 0.5;
 
   for(let y=0;y<h;y++){
     for(let x=0;x<w;x++){
       const tx=ox+x, ty=oy+y;
       if(!inBounds(tx,ty)) continue;
       const i = idx(tx,ty);
-      tiles[i] = TILE_TYPES.ROCKFLOOR;
-      biome[i] = 'dungeon2';
-      const border = (x===0||y===0||x===w-1||y===h-1);
-      objects[i] = border ? {type:'dungeon2_wall', hp:9999, maxHp:9999} : null;
+      const d = dist(tx+0.5, ty+0.5, cx, cy);
+      if(d <= radius){
+        tiles[i] = TILE_TYPES.ROCKFLOOR;
+        biome[i] = 'dungeon2';
+        objects[i] = null;
+        if(d > radius-1) objects[i] = {type:'dungeon2_wall', hp:9999, maxHp:9999};
+      } else {
+        tiles[i] = TILE_TYPES.WATER;
+        biome[i] = 'barrier';
+        objects[i] = null;
+      }
     }
   }
-  const entryTx = ox+Math.floor(w/2), entryTy = oy+h-2;
-  const exitTx = ox+Math.floor(w/2), exitTy = oy;
+
+  function isFloorInterior(tx,ty){
+    if(!inBounds(tx,ty)) return false;
+    return biome[idx(tx,ty)]==='dungeon2' && objects[idx(tx,ty)]===null;
+  }
+
+  // Entrée en bas, sortie en haut du disque, alignées sur le centre.
+  const midX = Math.round(cx);
+  let entryTy = oy+h-2;
+  for(let ty=oy+h-1; ty>=oy; ty--){ if(isFloorInterior(midX,ty)){ entryTy=ty; break; } }
+  let exitTy = oy+1;
+  for(let ty=oy; ty<oy+h; ty++){ if(isFloorInterior(midX,ty)){ exitTy=ty; break; } }
+  const entryTx = midX, exitTx = midX;
+
+  // Cubes de décor/couverture, indestructibles, dispersés dans l'arène (pas
+  // trop près du centre ni du bord, ni sur l'entrée/la sortie).
+  let cubesPlaced=0, cAttempts=0;
+  while(cubesPlaced<6 && cAttempts<300){
+    cAttempts++;
+    const rx = randi(ox+2, ox+w-3), ry = randi(oy+2, oy+h-3);
+    if((rx===entryTx&&ry===entryTy) || (rx===exitTx&&ry===exitTy)) continue;
+    const dd = dist(rx+0.5,ry+0.5,cx,cy);
+    if(dd < radius-2 && dd > 2.5 && isFloorInterior(rx,ry)){
+      objects[idx(rx,ry)] = {type:'dungeon2_cube', hp:9999, maxHp:9999};
+      cubesPlaced++;
+    }
+  }
 
   // L'entrée reste dans la zone visible/explorable, une seule case, dissimulée.
   let etx=0, ety=0, etries=0;
@@ -667,7 +734,7 @@ function setupDungeon2(){
   objects[idx(etx,ety)] = {type:'dungeon2_entrance'};
 
   dungeon2 = {
-    ox,oy,w,h, entryTx,entryTy, exitTx,exitTy,
+    ox,oy,w,h, cx,cy,radius, entryTx,entryTy, exitTx,exitTy,
     entranceTx:etx, entranceTy:ety,
     sealed:false, defeated:false, boss:null
   };
@@ -862,7 +929,7 @@ function tileSolid(tx,ty){
   const o = objects[idx(tx,ty)];
   if(!o) return false;
   // Les arbres ne bloquent plus les déplacements (joueur ou animaux).
-  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block' || o.type==='dungeon2_wall') return true;
+  if(o.type==='rock' || o.type==='wall' || o.type==='piston' || o.type==='piston_sticky' || o.type==='sticky_block' || o.type==='dungeon2_wall' || o.type==='dungeon2_cube') return true;
   if(o.type==='door') return false;
   return false;
 }
@@ -891,6 +958,8 @@ const RECIPES = [
   {id:'axe2', name:'Hache en pierre', icon:'🪓', cost:{wood:2, stone:3}, show:()=>hasTool('axe')===1, effect:()=>addItem('axe_stone',1)},
   {id:'pick2', name:'Pioche en pierre', icon:'⛏️', cost:{wood:2, stone:3}, show:()=>hasTool('pick')===1, effect:()=>addItem('pick_stone',1)},
   {id:'sword2', name:'Épée en pierre', icon:'🗡️', cost:{wood:2, stone:3}, show:()=>hasTool('sword')===1, effect:()=>addItem('sword_stone',1)},
+  {id:'bow', name:'Arc', icon:'🏹', cost:{wood:3, hide:2}, show:()=>hasTool('bow')<1, effect:()=>addItem('bow',1)},
+  {id:'arrowx6', name:'6 flèches', icon:'➶', cost:{wood:1, feather:1, stone:1}, show:()=>true, effect:()=>addItem('arrow',6)},
   {id:'wallx5', name:'5 murs', icon:'🧱', cost:{wood:5}, show:()=>true, effect:()=>addItem('wall',5)},
   {id:'firex1', name:'1 feu de camp', icon:'🔥', cost:{wood:3, stone:2}, show:()=>true, effect:()=>addItem('campfire',1)},
   {id:'lever', name:'Levier', icon:'🔘', cost:{stone:2}, show:()=>true, effect:()=>addItem('lever',1)},
@@ -914,7 +983,7 @@ function renderRecipes(){
     const div = document.createElement('div');
     div.className = 'recipe';
     const costTxt = Object.entries(r.cost).map(([k,v])=>{
-      const ic = {wood:'🪵',stone:'🪨',hide:'🟤'}[k] || k;
+      const ic = {wood:'🪵',stone:'🪨',hide:'🟤',feather:'🪶'}[k] || k;
       return `${v} ${ic}`;
     }).join(' + ');
     div.innerHTML = `<div class="name"><span style="font-size:20px">${r.icon}</span>${r.name}</div><div class="cost">${costTxt}</div>`;
@@ -1064,6 +1133,7 @@ function isNight(){ return dayTime > NIGHT_START && dayTime < NIGHT_END; }
    INPUT
 ========================================================= */
 window.addEventListener('keydown', e=>{
+  if(e.repeat) return; // empêche la répétition automatique du navigateur de spammer les actions
   keys[e.key.toLowerCase()] = true;
   if(gameOver || !started) return;
   const k = e.key.toLowerCase();
@@ -1098,12 +1168,40 @@ function facingTile(){
   const {dx,dy} = facingOffset();
   return {tx:Math.floor(player.x/TILE)+dx, ty:Math.floor(player.y/TILE)+dy};
 }
-function swordDamage(){ return [12,26,44][hasTool('sword')]; }
+// Dégâts au corps-à-corps : sans épée EN MAIN (sélectionnée), le joueur ne
+// frappe qu'à mains nues, bien plus faible. Le bonus d'attaque n'est accordé
+// que si une épée est réellement tenue (slot sélectionné), pas simplement possédée.
+const FIST_DAMAGE = 5;
+const SWORD_DAMAGE = [FIST_DAMAGE, 12, 26, 44];
+function swordDamage(){ return SWORD_DAMAGE[heldTool('sword')]; }
 
-// E : combat (zombis, animaux), activer un levier.
+// Cooldowns (en secondes) : empêche de spammer les touches E / Maj+E.
+const ATTACK_COOLDOWN = [0.55, 0.42, 0.34]; // mains nues / épée bois / épée pierre
+const BOW_COOLDOWN = 0.75;
+const HARVEST_COOLDOWN = 0.38;
+
+function currentAttackCooldown(){
+  const tier = heldTool('sword');
+  return ATTACK_COOLDOWN[Math.min(tier, ATTACK_COOLDOWN.length-1)];
+}
+
+// E : combat (zombis, animaux), tir à l'arc, activer un levier.
 function doInteract(){
   if(craftOpen || invOpen) return;
+  if(player.atkCd>0) return;
+
+  // Si un arc est équipé (sélectionné) et que des flèches sont disponibles,
+  // E tire une flèche au lieu de frapper au corps-à-corps.
+  const selItem = player.slots[selectedSlot];
+  if(selItem && ITEM_DEFS[selItem.id].kind==='bow'){
+    if(countItem('arrow')<=0){ logMsg("Plus de flèches !"); player.atkCd = 0.25; return; }
+    fireArrow();
+    player.atkCd = BOW_COOLDOWN;
+    return;
+  }
+
   const range = 42;
+  let didAttack = false;
 
   let target=null, bestD=Infinity;
   for(const z of zombies){ const d=dist(player.x,player.y,z.x,z.y); if(d<range && d<bestD){bestD=d; target=z;} }
@@ -1112,6 +1210,7 @@ function doInteract(){
     target.hp -= dmg;
     spawnParticles(target.x,target.y,'#8b0000',8);
     if(target.hp<=0){ zombies.splice(zombies.indexOf(target),1); spawnParticles(target.x,target.y,'#4a1010',14); }
+    player.atkCd = currentAttackCooldown();
     return;
   }
 
@@ -1122,6 +1221,7 @@ function doInteract(){
       ent.hp -= dmg;
       spawnParticles(ent.x,ent.y,'#5a3a1e',10);
       if(ent.hp<=0) defeatEnt();
+      player.atkCd = currentAttackCooldown();
       return;
     }
   }
@@ -1134,6 +1234,7 @@ function doInteract(){
       boss.hp -= dmg;
       spawnParticles(boss.x,boss.y,'#7ecbff',10);
       if(boss.hp<=0) defeatBoss2();
+      player.atkCd = currentAttackCooldown();
       return;
     }
   }
@@ -1164,6 +1265,7 @@ function doInteract(){
       spawnParticles(animalTarget.x,animalTarget.y,'#4a1010',10);
       updateHUD();
     }
+    player.atkCd = currentAttackCooldown();
     return;
   }
 }
@@ -1183,12 +1285,29 @@ function dropAnimalLoot(a){
   // le crapaud (frog) est purement décoratif et ne donne rien.
 }
 
+/* =========================================================
+   ARC & FLÈCHES
+========================================================= */
+const ARROW_DAMAGE = 20;
+const ARROW_SPEED = 380;
+function fireArrow(){
+  removeItem('arrow',1);
+  const {dx,dy} = facingOffset();
+  projectiles.push({
+    x:player.x+dx*16, y:player.y+dy*16,
+    vx:dx*ARROW_SPEED, vy:dy*ARROW_SPEED,
+    life:1.6, dmg:ARROW_DAMAGE, friendly:true, arrow:true
+  });
+  spawnParticles(player.x+dx*16, player.y+dy*16, '#e8d9a0', 3);
+  updateHUD();
+}
+
 // Maj+E : récolte (arbres/pierre/baies), manger l'objet sélectionné, casser un mécanisme posé.
 const BREAKABLE_PLACED = {wall:'wall', campfire:'campfire', lever:'lever', piston:'piston', piston_sticky:'piston_sticky', sticky_block:'sticky_block', door:'door', plate:'plate', sapling:'sapling',observer:'observer'};
 
 function harvestTree(tx,ty,o){
-  const axeTier = hasTool('axe');
-  const dmg = axeTier>0 ? axeTier+1 : 1;
+   const axeTier = heldTool('axe'); // 0 si aucune hache
+  const dmg = Math.max(1, axeTier + 1); // au moins 1 dégât à mains nues
   o.hp -= dmg;
   spawnParticles(tx*TILE+16, ty*TILE+16, '#6b4423', 6);
   if(o.hp<=0){
@@ -1203,11 +1322,12 @@ function harvestTree(tx,ty,o){
     forestBalance = clamp(forestBalance-1, 0, FOREST_BALANCE_MAX);
     if(forestBalance<=0 && !ent) spawnEnt();
   }
+  player.harvestCd = HARVEST_COOLDOWN;
   updateHUD();
 }
 function harvestRock(tx,ty,o){
-  const pickTier = hasTool('pick');
-  if(pickTier<1){ return; }
+  const pickTier = heldTool('pick');
+  if(pickTier<1){ logMsg("Équipez une pioche pour miner !"); return; }
   o.hp -= pickTier;
   spawnParticles(tx*TILE+16, ty*TILE+16, '#7c7c7c', 6);
   if(o.hp<=0){
@@ -1216,6 +1336,7 @@ function harvestRock(tx,ty,o){
     const leftover = addItem('stone', gain);
     if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'stone',leftover);
   }
+  player.harvestCd = HARVEST_COOLDOWN;
   updateHUD();
 }
 function harvestBush(tx,ty){
@@ -1224,6 +1345,7 @@ function harvestBush(tx,ty){
   if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,'berry',leftover);
   spawnParticles(tx*TILE+16, ty*TILE+16, '#c0392b', 6);
   setTimeout(()=>{ const cur=objects[idx(tx,ty)]; if(cur && cur.type==='bush') cur.berries=true; }, 20000);
+  player.harvestCd = HARVEST_COOLDOWN;
   updateHUD();
 }
 function breakPlacedAt(tx,ty,o){
@@ -1233,6 +1355,7 @@ function breakPlacedAt(tx,ty,o){
   const leftover = addItem(itemId,1);
   if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,itemId,leftover);
   spawnParticles(tx*TILE+16,ty*TILE+16,'#bbbbbb',7);
+  player.harvestCd = HARVEST_COOLDOWN;
   updateHUD();
 }
 
@@ -1242,6 +1365,7 @@ function breakWireAt(tx,ty,w){
   const leftover = addItem(itemId,1);
   if(leftover>0) spawnDrop(tx*TILE+16,ty*TILE+16,itemId,leftover);
   spawnParticles(tx*TILE+16,ty*TILE+16,'#ffb84a',7);
+  player.harvestCd = HARVEST_COOLDOWN;
   updateHUD();
 }
 
@@ -1251,14 +1375,14 @@ function doHarvestOrEat(){
   if(inBounds(tx,ty)){
     const o = objects[idx(tx,ty)];
     if(o){
-      if(o.type==='tree'){ harvestTree(tx,ty,o); return; }
-      if(o.type==='rock'){ harvestRock(tx,ty,o); return; }
-      if(o.type==='bush' && o.berries){ harvestBush(tx,ty); return; }
+      if(o.type==='tree'){ if(player.harvestCd>0) return; harvestTree(tx,ty,o); return; }
+      if(o.type==='rock'){ if(player.harvestCd>0) return; harvestRock(tx,ty,o); return; }
+      if(o.type==='bush' && o.berries){ if(player.harvestCd>0) return; harvestBush(tx,ty); return; }
       const itemId = BREAKABLE_PLACED[o.type];
-      if(itemId){ breakPlacedAt(tx,ty,o); return; }
+      if(itemId){ if(player.harvestCd>0) return; breakPlacedAt(tx,ty,o); return; }
     } else {
       const w = wires[idx(tx,ty)];
-      if(w){ breakWireAt(tx,ty,w); return; }
+      if(w){ if(player.harvestCd>0) return; breakWireAt(tx,ty,w); return; }
     }
   }
   eatSelected();
@@ -1883,6 +2007,51 @@ function updateProjectiles(dt){
   for(let i=projectiles.length-1;i>=0;i--){
     const p = projectiles[i];
     p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+
+    if(p.friendly){
+      // Projectile du joueur (flèche) : touche zombis, animaux, ent, boss.
+      let hit = false;
+      for(const z of zombies){
+        if(dist(p.x,p.y,z.x,z.y) < 16){
+          z.hp -= p.dmg;
+          spawnParticles(z.x,z.y,'#8b0000',7);
+          if(z.hp<=0){ zombies.splice(zombies.indexOf(z),1); spawnParticles(z.x,z.y,'#4a1010',12); }
+          hit = true; break;
+        }
+      }
+      if(!hit){
+        for(const a of animals){
+          if(a.submerged) continue;
+          if(dist(p.x,p.y,a.x,a.y) < 16){
+            a.hp -= p.dmg;
+            spawnParticles(a.x,a.y,'#7a3b2e',6);
+            if(a.hp<=0){
+              dropAnimalLoot(a);
+              animals.splice(animals.indexOf(a),1);
+              spawnParticles(a.x,a.y,'#4a1010',10);
+              updateHUD();
+            }
+            hit = true; break;
+          }
+        }
+      }
+      if(!hit && ent && dist(p.x,p.y,ent.x,ent.y) < 22){
+        ent.hp -= p.dmg;
+        spawnParticles(ent.x,ent.y,'#5a3a1e',8);
+        if(ent.hp<=0) defeatEnt();
+        hit = true;
+      }
+      if(!hit && dungeon2 && dungeon2.boss && dist(p.x,p.y,dungeon2.boss.x,dungeon2.boss.y) < 26){
+        dungeon2.boss.hp -= p.dmg;
+        spawnParticles(dungeon2.boss.x,dungeon2.boss.y,'#7ecbff',8);
+        if(dungeon2.boss.hp<=0) defeatBoss2();
+        hit = true;
+      }
+      if(hit){ projectiles.splice(i,1); continue; }
+      if(p.life<=0 || tileSolid(Math.floor(p.x/TILE),Math.floor(p.y/TILE))){ projectiles.splice(i,1); continue; }
+      continue;
+    }
+
     if(dist(p.x,p.y,player.x,player.y) < 14){
       player.hp -= p.dmg; player.hurtFlash = 0.3;
       spawnParticles(player.x,player.y, p.root?'#5a3a1e':'#8a5a2a', 6);
@@ -1910,6 +2079,20 @@ function drawEnt(camX,camY){
 }
 function drawProjectiles(camX,camY){
   for(const p of projectiles){
+    if(p.arrow){
+      const sx=p.x-camX, sy=p.y-camY;
+      const ang = Math.atan2(p.vy,p.vx);
+      ctx.save();
+      ctx.translate(sx,sy); ctx.rotate(ang);
+      ctx.strokeStyle='#c9a06a'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(7,0); ctx.stroke();
+      ctx.fillStyle='#e8d9a0';
+      ctx.beginPath(); ctx.moveTo(9,0); ctx.lineTo(4,-3); ctx.lineTo(4,3); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#8a5a2a'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(-13,-3); ctx.moveTo(-9,0); ctx.lineTo(-13,3); ctx.stroke();
+      ctx.restore();
+      continue;
+    }
     ctx.fillStyle = p.root ? '#5a3a1e' : '#e8963c';
     ctx.beginPath(); ctx.arc(p.x-camX, p.y-camY, 5, 0, Math.PI*2); ctx.fill();
   }
@@ -1965,13 +2148,15 @@ function exitDungeon2(){
 ========================================================= */
 function spawnBoss2(){
   dungeon2.boss = {
-    x:(dungeon2.ox+dungeon2.w/2)*TILE+16, y:(dungeon2.oy+3)*TILE+16,
+    x:dungeon2.cx*TILE, y:(dungeon2.oy+3)*TILE+16,
     hp:520, maxHp:520, speed:56,
     hitCd:0,
     mode:'chase', modeTimer:0,
     nextSpecialTimer: rand(3.5,5),
     slashDir:{dx:0,dy:1}, slashHitDone:false,
-    spinHitCd:0
+    spinHitCd:0,
+    enraged:false,
+    auraPhase:0
   };
   document.getElementById('bossBarWrap').style.display = 'flex';
   document.getElementById('bossName').textContent = 'LE GARDIEN LAMÉ';
@@ -1980,12 +2165,24 @@ function spawnBoss2(){
 function updateBoss2(dt){
   if(!dungeon2 || !dungeon2.boss) return;
   const b = dungeon2.boss;
+  b.auraPhase += dt;
+
+  // Passé la moitié de ses PV, le Gardien entre en rage : ses dashs sont
+  // quasi immédiats (télégraphe très court) et reviennent beaucoup plus souvent.
+  if(!b.enraged && b.hp <= b.maxHp*0.5){
+    b.enraged = true;
+    b.nextSpecialTimer = rand(0.8,1.4);
+    logMsg('Le Gardien Lamé entre en rage !');
+  }
+  const telegraphTime = b.enraged ? 0.14 : 0.6;
+  const specialCooldown = b.enraged ? [1.1,1.9] : [4,6];
 
   if(b.mode==='chase'){
     const d = dist(b.x,b.y,player.x,player.y);
     const ang = Math.atan2(player.y-b.y, player.x-b.x);
-    const nx = b.x+Math.cos(ang)*b.speed*dt;
-    const ny = b.y+Math.sin(ang)*b.speed*dt;
+    const spd = b.enraged ? b.speed*1.25 : b.speed;
+    const nx = b.x+Math.cos(ang)*spd*dt;
+    const ny = b.y+Math.sin(ang)*spd*dt;
     if(!tileSolid(Math.floor(nx/TILE),Math.floor(b.y/TILE))) b.x = nx;
     if(!tileSolid(Math.floor(b.x/TILE),Math.floor(ny/TILE))) b.y = ny;
 
@@ -1999,11 +2196,11 @@ function updateBoss2(dt){
     b.nextSpecialTimer -= dt;
     if(b.nextSpecialTimer<=0){
       if(Math.random()<0.5){
-        b.mode='telegraphSlash'; b.modeTimer=0.6;
+        b.mode='telegraphSlash'; b.modeTimer=telegraphTime;
         b.slashDir = {dx:Math.cos(ang), dy:Math.sin(ang)};
         b.slashHitDone = false;
       } else {
-        b.mode='telegraphSpin'; b.modeTimer=0.5;
+        b.mode='telegraphSpin'; b.modeTimer=telegraphTime*0.8;
       }
     }
   }
@@ -2013,7 +2210,7 @@ function updateBoss2(dt){
   }
   else if(b.mode==='slash'){
     b.modeTimer -= dt;
-    const dashSpeed = 380;
+    const dashSpeed = b.enraged ? 480 : 380;
     const nx = b.x + b.slashDir.dx*dashSpeed*dt;
     const ny = b.y + b.slashDir.dy*dashSpeed*dt;
     if(!tileSolid(Math.floor(nx/TILE),Math.floor(b.y/TILE))) b.x = nx;
@@ -2029,7 +2226,7 @@ function updateBoss2(dt){
         if(player.hp<=0) killPlayer('Frappé par la lame du Gardien');
       }
     }
-    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(4,6); }
+    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(specialCooldown[0],specialCooldown[1]); }
   }
   else if(b.mode==='telegraphSpin'){
     b.modeTimer -= dt;
@@ -2044,7 +2241,7 @@ function updateBoss2(dt){
       spawnParticles(player.x,player.y,'#7ecbff',6);
       if(player.hp<=0) killPlayer('Déchiqueté par la lame tourbillonnante');
     }
-    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(4,6); }
+    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(specialCooldown[0],specialCooldown[1]); }
   }
 
   document.getElementById('bossBarFill').style.width = Math.max(0,b.hp/b.maxHp*100)+'%';
@@ -2066,14 +2263,58 @@ function drawBoss2(camX,camY){
   if(!dungeon2 || !dungeon2.boss) return;
   const b = dungeon2.boss;
   const sx = b.x-camX, sy = b.y-camY;
+
+  // Aura au sol, plus intense et rouge en rage.
+  const auraR = 30 + Math.sin(b.auraPhase*2)*3;
+  const auraGrad = ctx.createRadialGradient(sx,sy+6,4,sx,sy+6,auraR);
+  if(b.enraged){
+    auraGrad.addColorStop(0,'rgba(255,90,60,0.35)');
+    auraGrad.addColorStop(1,'rgba(255,90,60,0)');
+  } else {
+    auraGrad.addColorStop(0,'rgba(126,203,255,0.28)');
+    auraGrad.addColorStop(1,'rgba(126,203,255,0)');
+  }
+  ctx.fillStyle = auraGrad;
+  ctx.beginPath(); ctx.arc(sx,sy+6,auraR,0,Math.PI*2); ctx.fill();
+
   ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx,sy+24,22,7,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = (b.mode==='spin') ? '#3a2050' : '#241a30';
-  ctx.beginPath(); ctx.ellipse(sx,sy,22,28,0,0,Math.PI*2); ctx.fill();
+
+  // Corps : robe fantomatique avec dégradé, plus élégante que l'ancien ovale plat.
+  const bodyGrad = ctx.createLinearGradient(sx,sy-30,sx,sy+28);
+  if(b.mode==='spin'){ bodyGrad.addColorStop(0,'#4a2f66'); bodyGrad.addColorStop(1,'#241a30'); }
+  else if(b.enraged){ bodyGrad.addColorStop(0,'#3a1c2c'); bodyGrad.addColorStop(1,'#1c0e16'); }
+  else { bodyGrad.addColorStop(0,'#2c2038'); bodyGrad.addColorStop(1,'#171122'); }
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.moveTo(sx,sy-30);
+  ctx.quadraticCurveTo(sx+24,sy-6, sx+18,sy+28);
+  ctx.quadraticCurveTo(sx,sy+20, sx-18,sy+28);
+  ctx.quadraticCurveTo(sx-24,sy-6, sx,sy-30);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = b.enraged ? 'rgba(255,110,80,0.55)' : 'rgba(126,203,255,0.4)';
+  ctx.lineWidth=1.5; ctx.stroke();
+
+  // Capuche / tête
   ctx.fillStyle = '#150e1c';
-  ctx.beginPath(); ctx.ellipse(sx,sy-8,15,14,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = (b.mode==='slash'||b.mode==='telegraphSlash') ? '#ff5a3c' : '#7ecbff';
-  ctx.beginPath(); ctx.arc(sx-5,sy-9,2.6,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(sx+5,sy-9,2.6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(sx,sy-16,14,15,0,0,Math.PI*2); ctx.fill();
+
+  // Yeux lumineux
+  const eyeCol = (b.mode==='slash'||b.mode==='telegraphSlash') ? '#ff5a3c' : (b.enraged ? '#ff8a5c' : '#7ecbff');
+  ctx.fillStyle = eyeCol;
+  ctx.shadowColor = eyeCol; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.arc(sx-5,sy-17,2.8,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx+5,sy-17,2.8,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Lame flottante à ses côtés (détail décoratif permanent, plus "sympa" visuellement)
+  const bob = Math.sin(b.auraPhase*3)*4;
+  ctx.save();
+  ctx.translate(sx+20, sy-2+bob);
+  ctx.rotate(0.5);
+  ctx.fillStyle = '#cfe8ff';
+  ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(4,10); ctx.lineTo(-4,10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#5a3a1e'; ctx.fillRect(-2,10,4,6);
+  ctx.restore();
 
   if(b.mode==='spin'){
     const rot = performance.now()/70;
@@ -2098,7 +2339,7 @@ function drawBoss2(camX,camY){
     ctx.stroke();
   }
   ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx-22, sy-46, 44, 5);
-  ctx.fillStyle='#7ecbff'; ctx.fillRect(sx-22, sy-46, 44*Math.max(0,b.hp/b.maxHp), 5);
+  ctx.fillStyle= b.enraged ? '#ff5a3c' : '#7ecbff'; ctx.fillRect(sx-22, sy-46, 44*Math.max(0,b.hp/b.maxHp), 5);
 }
 
 /* =========================================================
@@ -2536,6 +2777,8 @@ function updatePlayer(dt){
   if(player.hunger<=0){ player.hunger=0; player.hp -= dt*3; }
   if(player.hp<=0){ player.hp=0; killPlayer('Mort de faim'); }
   if(player.hurtFlash>0) player.hurtFlash -= dt;
+  if(player.atkCd>0) player.atkCd -= dt;
+  if(player.harvestCd>0) player.harvestCd -= dt;
 
   camera.x += (player.x-camera.x)*Math.min(1,dt*8);
   camera.y += (player.y-camera.y)*Math.min(1,dt*8);
@@ -2853,10 +3096,34 @@ function drawObject(tx,ty,o,camX,camY){
     ctx.fillStyle = '#6fcf5a';
     ctx.beginPath(); ctx.ellipse(cx, sy+13, 4, 6, 0, 0, Math.PI*2); ctx.fill();
   } else if(o.type==='dungeon2_wall'){
-    ctx.fillStyle = '#241a30'; ctx.fillRect(sx,sy,TILE,TILE);
-    ctx.strokeStyle = '#3a2a50'; ctx.lineWidth=2; ctx.strokeRect(sx+2,sy+2,TILE-4,TILE-4);
-    ctx.fillStyle = 'rgba(126,203,255,0.35)';
-    ctx.fillRect(cx-2,sy+6,4,TILE-12);
+    // Mur cristallin incurvé délimitant l'arène sphérique du Gardien Lamé.
+    const grad = ctx.createLinearGradient(sx,sy,sx,sy+TILE);
+    grad.addColorStop(0,'#2e2148');
+    grad.addColorStop(1,'#160f26');
+    ctx.fillStyle = grad; ctx.fillRect(sx,sy,TILE,TILE);
+    ctx.strokeStyle = 'rgba(126,203,255,0.5)'; ctx.lineWidth=2; ctx.strokeRect(sx+2,sy+2,TILE-4,TILE-4);
+    const glow = 0.25+Math.sin(performance.now()/700+tx*0.7+ty*0.5)*0.15;
+    ctx.fillStyle = `rgba(126,203,255,${glow})`;
+    ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2); ctx.fill();
+  } else if(o.type==='dungeon2_cube'){
+    // Cube flottant décoratif servant de couverture dans l'arène : rendu en
+    // pseudo-3D (trois faces) pour bien lire comme un "cube" au sol.
+    const s = TILE-8;
+    const topH = 8;
+    ctx.fillStyle = '#3a2c58';
+    ctx.fillRect(sx+4, sy+4+topH, s, s-topH);
+    ctx.strokeStyle = 'rgba(126,203,255,0.45)'; ctx.lineWidth=1.5;
+    ctx.strokeRect(sx+4, sy+4+topH, s, s-topH);
+    ctx.fillStyle = '#5a4484';
+    ctx.beginPath();
+    ctx.moveTo(sx+4, sy+4+topH);
+    ctx.lineTo(sx+4+s/2, sy+4);
+    ctx.lineTo(sx+4+s, sy+4+topH);
+    ctx.lineTo(sx+4+s/2, sy+4+topH*2);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(126,203,255,0.6)'; ctx.stroke();
+    ctx.fillStyle = 'rgba(126,203,255,0.5)';
+    ctx.beginPath(); ctx.arc(sx+4+s/2, sy+4+topH, 2, 0, Math.PI*2); ctx.fill();
   } else if(o.type==='dungeon2_entrance'){
     ctx.fillStyle = '#6b6b5a';
     ctx.beginPath(); ctx.ellipse(cx,cy+5,13,8,0,0,Math.PI*2); ctx.fill();
@@ -2991,8 +3258,13 @@ function drawPlayer(camX,camY){
   ctx.fillStyle = '#5a3a1e'; ctx.fillRect(sx-7, sy-20, 14, 4);
   const {dx,dy} = facingOffset();
   ctx.fillStyle = '#222'; ctx.fillRect(sx+dx*10-2, sy+dy*10-2, 4,4);
-  const swTier = hasTool('sword');
+  const swTier = heldTool('sword');
   if(swTier>0){ ctx.fillStyle= swTier===2?'#9d9d9d':'#c9a06a'; ctx.fillRect(sx+8,sy-4,3,14); }
+  const bowTier = heldTool('bow');
+  if(bowTier>0){
+    ctx.strokeStyle='#8a5a2a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(sx-dx*2-10, sy-dy*2, 8, 0.3, Math.PI*2-0.3); ctx.stroke();
+  }
   ctx.restore();
 }
 
