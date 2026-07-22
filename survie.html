@@ -1298,12 +1298,7 @@ function makePlaceObject(id, dir){
     case 'sticky_block': return {type:'sticky_block', hp:4, maxHp:4};
     case 'plate': return {type:'plate', active:false};
     case 'observer': return {type:'observer',dir, powered:false, pulse:0, lastState:null };
-    case 'door':
-    return {
-        type:'door',
-        open:false,
-        closeTimer:0
-    };
+    case 'door': return {type:'door',dir, open:false, closeTimer:0 };
     case 'sapling': return {type:'sapling', hp:1, maxHp:1, growTimer:rand(45,75)};
   }
   return null;
