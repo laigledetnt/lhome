@@ -208,10 +208,13 @@ html,body{
 const TILE = 32;
 const OVERWORLD_W = 574, OVERWORLD_H = 574; // zone explorable normale (carte visible)
 const BARRIER_ROWS = 60;                    // bande d'eau infranchissable, coupe tout accès à pied
-const BACKSTAGE_Y = OVERWORLD_H + BARRIER_ROWS; // début de la zone cachée (donjon)
+const BACKSTAGE_Y = OVERWORLD_H + BARRIER_ROWS; // début de la 1ère zone cachée (Gardien Lamé)
 const BACKSTAGE_H = 20;
+const BARRIER_ROWS2 = 40;                        // eau infranchissable avant la 2e zone cachée
+const BACKSTAGE2_Y = BACKSTAGE_Y + BACKSTAGE_H + BARRIER_ROWS2; // début de la 2e zone cachée
+const BACKSTAGE2_H = 22;
 const WORLD_W = OVERWORLD_W;
-const WORLD_H = BACKSTAGE_Y + BACKSTAGE_H;  // grille totale (inclut la zone cachée, jamais rendue accessible à pied)
+const WORLD_H = BACKSTAGE2_Y + BACKSTAGE2_H;
 const DAY_LENGTH = 300;
 const NIGHT_START = 0.5;
 const NIGHT_END = 0.92;
@@ -265,7 +268,8 @@ const ITEM_DEFS = {
   sticky_block:{icon:'🍯', name:'Bloc collant',        max:64, cat:'place'},
   plate:       {icon:'⬜', name:'Plaque de pression',  max:64, cat:'place'},
   door:        {icon:'🚪', name:'Porte',               max:64, cat:'place'},
-  gem:         {icon:'💎', name:'Gemme mystérieuse',    max:64, cat:'resource'},
+  gem_dash:    {icon:'💎', name:'Gemme dash',    max:1, cat:'resource'},
+  gem_bomb:    {icon:'🔴', name:'Gemme explosive',       max:1, cat:'resource'},
   hide:        {icon:'🟤', name:'Peau',                max:64, cat:'resource'},
   feather:     {icon:'🪶', name:'Plume',               max:64, cat:'resource'},
   fish:        {icon:'🐟', name:'Poisson',             max:64, cat:'food', hunger:24, heal:4},
@@ -289,6 +293,7 @@ let tiles, objects, wires, biome, zombies, animals, drops, player, camera, parti
 let dayTime, dayCount, craftOpen, invOpen, selectedSlot, heldItem;
 let projectiles, saplings, ent, forestBalance;
 let dungeon2, inDungeon2;
+let dungeon3, inDungeon3;
 const FOREST_BALANCE_MAX = 10;
 
 function freshState(){
@@ -305,6 +310,8 @@ function freshState(){
   forestBalance = FOREST_BALANCE_MAX;
   dungeon2 = null;
   inDungeon2 = false;
+  dungeon3 = null;
+  inDungeon3 = false;
   keys = {};
   gameOver = false;
   craftOpen = false;
@@ -322,8 +329,11 @@ function freshState(){
     hunger:300, maxHunger:300,
     slots: new Array(N_SLOTS).fill(null),
     hurtFlash:0, staggerTimer:0,
-    atkCd:0, harvestCd:0
+    atkCd:0, harvestCd:0,
+    dashCd:0, dashTimer:0, dashDx:0, dashDy:0,
+    bombCd:0
   };
+  
   camera = {x:player.x, y:player.y};
 }
 
@@ -391,8 +401,12 @@ function heldTool(kind){
   const def = ITEM_DEFS[s.id];
   if(def && def.cat==='tool' && def.kind===kind) return def.tier;
   return 0;
-}
 
+}
+function heldGem(){
+  const s = player.slots[selectedSlot];
+  return !!(s && s.id==='gem_dash');
+}
 /* =========================================================
    MESSAGES A L'ECRAN
 ========================================================= */
@@ -603,6 +617,7 @@ function generateWorld(){
   generateOuterWaterBorder();
   generateBarrierAndBackstage();
   setupDungeon2();
+   setupDungeon3();
 
   for(let i=0;i<2;i++) spawnAnimal('rabbit');
   for(let i=0;i<2;i++) spawnAnimal('boar');
@@ -625,6 +640,10 @@ function isInDungeon2Area(tx,ty){
   if(!dungeon2) return false;
   return tx>=dungeon2.ox-1 && tx<=dungeon2.ox+dungeon2.w && ty>=dungeon2.oy-1 && ty<=dungeon2.oy+dungeon2.h;
 }
+function isInDungeon3Area(tx,ty){
+  if(!dungeon3) return false;
+  return tx>=dungeon3.ox-1 && tx<=dungeon3.ox+dungeon3.w && ty>=dungeon3.oy-1 && ty<=dungeon3.oy+dungeon3.h;
+}
 
 function generateOuterWaterBorder(){
   // Tout le tour de la carte explorable est bordé d'eau infranchissable,
@@ -643,20 +662,10 @@ function generateOuterWaterBorder(){
 }
 
 function generateBarrierAndBackstage(){
-  // Bande d'eau infranchissable : impossible d'atteindre la zone cachée à pied.
-  for(let ty=OVERWORLD_H; ty<BACKSTAGE_Y; ty++){
-    for(let tx=0; tx<WORLD_W; tx++){
-      const i = idx(tx,ty);
-      tiles[i] = TILE_TYPES.WATER;
-      objects[i] = null;
-      biome[i] = 'barrier';
-    }
-  }
-  // Zone cachée par défaut : entourée d'eau (île), sera creusée (salle du donjon)
-  // par setupDungeon2. Ainsi, même sur un grand écran, on ne voit jamais de
-  // "plaine" qui traînerait hors des murs du donjon : tout ce qui n'est pas
-  // la salle elle-même est de l'eau.
-  for(let ty=BACKSTAGE_Y; ty<WORLD_H; ty++){
+  // Toute la zone sous l'overworld (bandes d'eau + les deux zones cachées)
+  // est noyée par défaut ; setupDungeon2 et setupDungeon3 creusent ensuite
+  // chacun leur propre salle dans cette étendue d'eau.
+  for(let ty=OVERWORLD_H; ty<WORLD_H; ty++){
     for(let tx=0; tx<WORLD_W; tx++){
       const i = idx(tx,ty);
       tiles[i] = TILE_TYPES.WATER;
@@ -740,7 +749,66 @@ function setupDungeon2(){
     sealed:false, defeated:false, boss:null
   };
 }
+function setupDungeon3(){
+  const w=17, h=17;
+  const ox = randi(4, WORLD_W-4-w);
+  const oy = BACKSTAGE2_Y + Math.max(0, Math.floor((BACKSTAGE2_H-h)/2));
+  const cx = ox + w/2, cy = oy + h/2;
 
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const tx=ox+x, ty=oy+y;
+      if(!inBounds(tx,ty)) continue;
+      const i = idx(tx,ty);
+      const onEdge = x===0 || y===0 || x===w-1 || y===h-1;
+      tiles[i] = TILE_TYPES.ROCKFLOOR;
+      biome[i] = 'dungeon3';
+      objects[i] = onEdge ? {type:'dungeon3_wall', hp:9999, maxHp:9999} : null;
+    }
+  }
+
+  function isFloorInterior(tx,ty){
+    if(!inBounds(tx,ty)) return false;
+    return biome[idx(tx,ty)]==='dungeon3' && objects[idx(tx,ty)]===null;
+  }
+
+  const midX = Math.round(cx);
+  let entryTy = oy+h-2;
+  for(let ty=oy+h-1; ty>=oy; ty--){ if(isFloorInterior(midX,ty)){ entryTy=ty; break; } }
+  let exitTy = oy+1;
+  for(let ty=oy; ty<oy+h; ty++){ if(isFloorInterior(midX,ty)){ exitTy=ty; break; } }
+  objects[idx(midX,entryTy)] = null;
+  const entryTx = midX, exitTx = midX;
+
+  let cubesPlaced=0, cAttempts=0;
+  while(cubesPlaced<5 && cAttempts<300){
+    cAttempts++;
+    const rx = randi(ox+2, ox+w-3), ry = randi(oy+2, oy+h-3);
+    if((rx===entryTx&&ry===entryTy) || (rx===exitTx&&ry===exitTy)) continue;
+    if(isFloorInterior(rx,ry) && dist(rx,ry,cx,cy) > 2.5){
+      objects[idx(rx,ry)] = {type:'dungeon3_cube', hp:9999, maxHp:9999};
+      cubesPlaced++;
+    }
+  }
+
+  let etx=0, ety=0, etries=0;
+  do{
+    etx = randi(4,WORLD_W-4); ety = randi(4,OVERWORLD_H-4); etries++;
+  } while(etries<400 && (
+    tiles[idx(etx,ety)]!==TILE_TYPES.GRASS ||
+    objects[idx(etx,ety)] ||
+    dist(etx,ety, WORLD_W/2, OVERWORLD_H/2) < 25 ||
+    (dungeon2 && dist(etx,ety, dungeon2.entranceTx, dungeon2.entranceTy) < 40)
+  ));
+  objects[idx(etx,ety)] = {type:'dungeon3_entrance'};
+
+  dungeon3 = {
+    ox,oy,w,h, cx,cy,
+    entryTx,entryTy, exitTx,exitTy,
+    entranceTx:etx, entranceTy:ety,
+    sealed:false, defeated:false, boss:null
+  };
+}
 // Compteur global d'identifiants de meute, utilisé pour relier chaque loup
 // suiveur à son loup alpha.
 let wolfPackIdCounter = 0;
@@ -776,7 +844,7 @@ function findSpawnTileForBiomes(biomesAllowed){
     if(tileSolid(tx,ty)) continue;
     if(tiles[idx(tx,ty)]!==TILE_TYPES.GRASS) continue;
     if(!biomesAllowed.includes(biome[idx(tx,ty)])) continue;
-    if(isInDungeon2Area(tx,ty)) continue;
+    if(isInDungeon2Area(tx,ty) || isInDungeon3Area(tx,ty)) continue;
     return {tx,ty};
   }
   return null;
@@ -795,7 +863,7 @@ function findSwampWaterSpawn(){
     const tx = Math.floor(px/TILE), ty = Math.floor(py/TILE);
     if(tx<1||ty<1||tx>=WORLD_W-1||ty>=OVERWORLD_H-1) continue;
     if(biome[idx(tx,ty)]!=='swamp') continue;
-    if(isInDungeon2Area(tx,ty)) continue;
+    if(isInDungeon2Area(tx,ty) || isInDungeon3Area(tx,ty)) continue;
     return {tx,ty};
   }
   return findSpawnTileForBiomes(['swamp']);
@@ -959,6 +1027,7 @@ const RECIPES = [
   {id:'sticky_block', name:'Bloc collant (x4)', icon:'🍯', cost:{wood:2, hide:1}, show:()=>true, effect:()=>addItem('sticky_block',4)},
   {id:'plate', name:'Plaque de pression', icon:'⬜', cost:{wood:2}, show:()=>true, effect:()=>addItem('plate',1)},
   {id:'door', name:'Porte', icon:'🚪', cost:{wood:4}, show:()=>true, effect:()=>addItem('door',1)},
+  
 ];
 
 function canAfford(cost){ for(const k in cost){ if(countItem(k) < cost[k]) return false; } return true; }
@@ -1131,6 +1200,7 @@ window.addEventListener('keydown', e=>{
   if(k==='e'){ if(keys['shift']) doHarvestOrEat(); else doInteract(); }
   if(k==='b'){ placeSelected(); }
   if(k==='a'){ dropSelected(); }
+  if(k===' ' || e.code==='Space'){ e.preventDefault(); doDash(); } 
   const hotkeys = {'&':0,'é':1,'"':2,"'":3,'(':4,'-':5,'è':6,'_':7,'ç':8};
   if(hotkeys[e.key] !== undefined){
     selectSlot(hotkeys[e.key]);
@@ -1172,17 +1242,43 @@ function currentAttackCooldown(){
   const tier = heldTool('sword');
   return ATTACK_COOLDOWN[Math.min(tier, ATTACK_COOLDOWN.length-1)];
 }
+const DASH_HUNGER_COST = 15;   // coût en faim à chaque dash
+const DASH_COOLDOWN = 0.3;     // secondes entre deux dashs
+const DASH_DURATION = 0.18;    // durée du déplacement rapide
+const DASH_SPEED = 620;        // vitesse pendant le dash
+
+function doDash(){
+  if(craftOpen || invOpen || gameOver) return;
+  if(player.dashCd>0) return;
+  if(!heldGem()){ logMsg("Équipez la gemme  pour dasher !"); return; }
+  if(player.hunger < DASH_HUNGER_COST){ logMsg("Pas assez de faim pour dasher !"); return; }
+
+  player.hunger = Math.max(0, player.hunger - DASH_HUNGER_COST);
+  player.dashCd = DASH_COOLDOWN;
+  player.dashTimer = DASH_DURATION;
+  const {dx,dy} = facingOffset();
+  player.dashDx = dx; player.dashDy = dy;
+
+  spawnParticles(player.x,player.y,'#7ecbff',16);
+  updateHUD();
+}
 
 // E : combat (zombis, animaux), tir à l'arc, activer un levier.
 function doInteract(){
   if(craftOpen || invOpen) return;
   if(player.atkCd>0) return;
 
-  const selItem = player.slots[selectedSlot];
+ const selItem = player.slots[selectedSlot];
   if(selItem && ITEM_DEFS[selItem.id].kind==='bow'){
     if(countItem('arrow')<=0){ logMsg("Plus de flèches !"); player.atkCd = 0.25; return; }
     fireArrow();
     player.atkCd = BOW_COOLDOWN;
+    return;
+  }
+  if(selItem && selItem.id==='gem_bomb'){
+    if(player.bombCd>0) return;
+    player.bombCd = BOMB_COOLDOWN;
+    fireBombVolley();
     return;
   }
 
@@ -1235,6 +1331,19 @@ function doInteract(){
       boss.hp -= dmg;
       spawnParticles(boss.x,boss.y,'#7ecbff',10);
       if(boss.hp<=0) defeatBoss2();
+      player.atkCd = currentAttackCooldown();
+      return;
+    }
+  }
+
+  if(dungeon3 && dungeon3.boss){
+    const boss3 = dungeon3.boss;
+    const bd3 = dist(player.x,player.y,boss3.x,boss3.y);
+    if(bd3<range){
+      const dmg = swordDamage();
+      boss3.hp -= dmg;
+      spawnParticles(boss3.x,boss3.y,'#ff5a3c',10);
+      if(boss3.hp<=0) defeatBoss3();
       player.atkCd = currentAttackCooldown();
       return;
     }
@@ -1300,6 +1409,68 @@ function fireArrow(){
     life:1.6, dmg:ARROW_DAMAGE, friendly:true, arrow:true
   });
   spawnParticles(player.x+dx*16, player.y+dy*16, '#e8d9a0', 3);
+  updateHUD();
+}
+const BOMB_COOLDOWN = 1.2;
+const EXPLOSION_RADIUS = 55;
+
+function spawnExplosiveVolley(x,y,baseAngle,friendly,count,spreadRad,speed,dmg){
+  for(let i=0;i<count;i++){
+    const off = (count===1) ? 0 : (-spreadRad/2 + spreadRad*(i/(count-1)));
+    const ang = baseAngle+off;
+    projectiles.push({
+      x, y, vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed,
+      life:2.2, dmg, friendly, explosive:true
+    });
+  }
+}
+
+function fireBombVolley(){
+  const {dx,dy} = facingOffset();
+  const baseAngle = Math.atan2(dy,dx);
+  spawnExplosiveVolley(player.x+dx*16, player.y+dy*16, baseAngle, true, 3, Math.PI/8, 340, 26);
+  spawnParticles(player.x+dx*16, player.y+dy*16, '#ff9d1f', 8);
+}
+
+function explodeProjectile(p){
+  spawnParticles(p.x,p.y, p.friendly ? '#ff9d1f' : '#ff5a3c', 20);
+  if(p.friendly){
+    for(const z of zombies.slice()){
+      if(dist(p.x,p.y,z.x,z.y) < EXPLOSION_RADIUS){
+        z.hp -= p.dmg;
+        if(z.hp<=0){ const zi=zombies.indexOf(z); if(zi>=0) zombies.splice(zi,1); spawnParticles(z.x,z.y,'#4a1010',10); }
+      }
+    }
+    for(const a of animals.slice()){
+      if(a.submerged) continue;
+      if(dist(p.x,p.y,a.x,a.y) < EXPLOSION_RADIUS){
+        a.hp -= p.dmg;
+        if(a.hp<=0){
+          dropAnimalLoot(a);
+          const ai = animals.indexOf(a);
+          if(ai>=0) animals.splice(ai,1);
+          spawnParticles(a.x,a.y,'#4a1010',10);
+        }
+      }
+    }
+    if(ent && dist(p.x,p.y,ent.x,ent.y) < EXPLOSION_RADIUS){
+      ent.hp -= p.dmg;
+      if(ent.hp<=0) defeatEnt();
+    }
+    if(dungeon2 && dungeon2.boss && dist(p.x,p.y,dungeon2.boss.x,dungeon2.boss.y) < EXPLOSION_RADIUS){
+      dungeon2.boss.hp -= p.dmg;
+      if(dungeon2.boss.hp<=0) defeatBoss2();
+    }
+    if(dungeon3 && dungeon3.boss && dist(p.x,p.y,dungeon3.boss.x,dungeon3.boss.y) < EXPLOSION_RADIUS){
+      dungeon3.boss.hp -= p.dmg;
+      if(dungeon3.boss.hp<=0) defeatBoss3();
+    }
+  } else {
+    if(dist(p.x,p.y,player.x,player.y) < EXPLOSION_RADIUS){
+      player.hp -= p.dmg; player.hurtFlash = 0.3;
+      if(player.hp<=0) killPlayer('Déchiqueté par une explosion');
+    }
+  }
   updateHUD();
 }
 
@@ -2008,6 +2179,22 @@ function updateProjectiles(dt){
   for(let i=projectiles.length-1;i>=0;i--){
     const p = projectiles[i];
     p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+    if(p.explosive){
+      let exploded = false;
+      if(p.friendly){
+        for(const z of zombies){ if(dist(p.x,p.y,z.x,z.y)<16){ exploded=true; break; } }
+        if(!exploded) for(const a of animals){ if(!a.submerged && dist(p.x,p.y,a.x,a.y)<16){ exploded=true; break; } }
+        if(!exploded && ent && dist(p.x,p.y,ent.x,ent.y)<20) exploded=true;
+        if(!exploded && dungeon2 && dungeon2.boss && dist(p.x,p.y,dungeon2.boss.x,dungeon2.boss.y)<24) exploded=true;
+        if(!exploded && dungeon3 && dungeon3.boss && dist(p.x,p.y,dungeon3.boss.x,dungeon3.boss.y)<24) exploded=true;
+      } else {
+        if(dist(p.x,p.y,player.x,player.y)<16) exploded=true;
+      }
+      if(!exploded && tileSolid(Math.floor(p.x/TILE),Math.floor(p.y/TILE))) exploded=true;
+      if(!exploded && p.life<=0) exploded=true;
+      if(exploded){ explodeProjectile(p); projectiles.splice(i,1); }
+      continue;
+    }
 
     if(p.friendly){
       // Projectile du joueur (flèche) : touche zombis, animaux, ent, boss.
@@ -2130,6 +2317,8 @@ function checkTeleports(){
   if(!o) return;
   if(o.type==='dungeon2_entrance') enterDungeon2();
   else if(o.type==='dungeon2_exit') exitDungeon2();
+  else if(o.type==='dungeon3_entrance') enterDungeon3();
+  else if(o.type==='dungeon3_exit') exitDungeon3();
 }
 function enterDungeon2(){
   teleportPlayer(dungeon2.entryTx, dungeon2.entryTy);
@@ -2142,6 +2331,22 @@ function enterDungeon2(){
 function exitDungeon2(){
   teleportPlayer(dungeon2.entranceTx, dungeon2.entranceTy-1);
   inDungeon2 = false;
+}
+function enterDungeon3(){
+  if(!dungeon2 || !dungeon2.defeated){
+    logMsg("Le passage est scellé... il faut d'abord vaincre le Gardien Lamé.");
+    return;
+  }
+  teleportPlayer(dungeon3.entryTx, dungeon3.entryTy);
+  inDungeon3 = true;
+  if(!dungeon3.defeated && !dungeon3.sealed){
+    dungeon3.sealed = true;
+    spawnBoss3();
+  }
+}
+function exitDungeon3(){
+  teleportPlayer(dungeon3.entranceTx, dungeon3.entranceTy-1);
+  inDungeon3 = false;
 }
 
 /* =========================================================
@@ -2288,9 +2493,216 @@ function defeatBoss2(){
   dungeon2.sealed = false;
   objects[idx(dungeon2.exitTx,dungeon2.exitTy)] = {type:'dungeon2_exit'};
   document.getElementById('bossBarWrap').style.display = 'none';
-  const leftover = addItem('gem',1);
-  if(leftover>0) spawnDrop(b.x,b.y,'gem',leftover);
+  const leftover = addItem('gem_dash',1);
+  if(leftover>0) spawnDrop(b.x,b.y,'gem_dash',leftover);
   updateHUD();
+}
+function spawnBoss3(){
+  dungeon3.boss = {
+    x:dungeon3.cx*TILE, y:(dungeon3.oy+3)*TILE+16,
+    hp:850, maxHp:850, speed:80,
+    hitCd:0,
+    mode:'chase', modeTimer:0,
+    nextSpecialTimer: rand(3,4.5),
+    nextBombTimer: rand(3.5,5),
+    slashDir:{dx:0,dy:1}, slashHitDone:false,
+    spinHitCd:0,
+    enraged:false,
+    auraPhase:0
+  };
+  document.getElementById('bossBarWrap').style.display = 'flex';
+  document.getElementById('bossName').textContent = 'LE COLOSSE DE BRAISE';
+  document.getElementById('bossBarFill').style.width = '100%';
+}
+
+function updateBoss3(dt){
+  if(!dungeon3 || !dungeon3.boss) return;
+  const b = dungeon3.boss;
+  b.auraPhase += dt;
+
+  if(!b.enraged && b.hp <= b.maxHp*0.5){
+    b.enraged = true;
+    b.nextSpecialTimer = rand(0.8,1.4);
+    logMsg('Le Colosse de Braise entre en éruption !');
+  }
+  const telegraphTime = b.enraged ? 0.14 : 0.6;
+  const specialCooldown = b.enraged ? [1.1,1.9] : [4,6];
+
+  b.nextBombTimer -= dt;
+  if(b.nextBombTimer<=0 && dist(b.x,b.y,player.x,player.y) < 420){
+    b.nextBombTimer = b.enraged ? rand(2,3) : rand(4.5,6.5);
+    const ang = Math.atan2(player.y-b.y, player.x-b.x);
+    spawnExplosiveVolley(b.x,b.y,ang,false,3,Math.PI/6,220,18);
+    spawnParticles(b.x,b.y,'#ff9d1f',10);
+  }
+
+  if(b.mode==='chase'){
+    const d = dist(b.x,b.y,player.x,player.y);
+    const ang = Math.atan2(player.y-b.y, player.x-b.x);
+    const spd = b.enraged ? b.speed*1.25 : b.speed;
+    const nx = b.x + Math.cos(ang) * spd * dt;
+    const ny = b.y + Math.sin(ang) * spd * dt;
+
+    const ntx = Math.floor(nx / TILE);
+    const nty = Math.floor(b.y / TILE);
+    if(tileSolid(ntx, nty)) breakBlockingObject(ntx, nty);
+    if(!tileSolid(ntx, nty)) b.x = nx;
+
+    const mtx = Math.floor(b.x / TILE);
+    const mty = Math.floor(ny / TILE);
+    if(tileSolid(mtx, mty)) breakBlockingObject(mtx, mty);
+    if(!tileSolid(mtx, mty)) b.y = ny;
+
+    b.hitCd -= dt;
+    if(d<30 && b.hitCd<=0){
+      player.hp -= 16; player.hurtFlash = 0.3; b.hitCd = 0.9;
+      spawnParticles(player.x,player.y,'#ff5a3c',9);
+      if(player.hp<=0) killPlayer('Écrasé par le Colosse de Braise');
+    }
+
+    b.nextSpecialTimer -= dt;
+    if(b.nextSpecialTimer<=0){
+      if(Math.random()<0.5){
+        b.mode='telegraphSlash'; b.modeTimer=telegraphTime;
+        b.slashDir = {dx:Math.cos(ang), dy:Math.sin(ang)};
+        b.slashHitDone = false;
+      } else {
+        b.mode='telegraphSpin'; b.modeTimer=telegraphTime*0.8;
+      }
+    }
+  }
+  else if(b.mode==='telegraphSlash'){
+    b.modeTimer -= dt;
+    if(b.modeTimer<=0){ b.mode='slash'; b.modeTimer=0.4; }
+  }
+  else if(b.mode==='slash'){
+    b.modeTimer -= dt;
+    const dashSpeed = b.enraged ? 460 : 360;
+    const nx = b.x + b.slashDir.dx * dashSpeed * dt;
+    const ny = b.y + b.slashDir.dy * dashSpeed * dt;
+
+    const ntx = Math.floor(nx / TILE);
+    const nty = Math.floor(b.y / TILE);
+    if(tileSolid(ntx, nty)) breakBlockingObject(ntx, nty);
+    if(!tileSolid(ntx, nty)) b.x = nx;
+
+    const mtx = Math.floor(b.x / TILE);
+    const mty = Math.floor(ny / TILE);
+    if(tileSolid(mtx, mty)) breakBlockingObject(mtx, mty);
+    if(!tileSolid(mtx, mty)) b.y = ny;
+
+    if(!b.slashHitDone){
+      const toPx = player.x-b.x, toPy = player.y-b.y;
+      const along = toPx*b.slashDir.dx + toPy*b.slashDir.dy;
+      const perp = Math.abs(toPx*(-b.slashDir.dy) + toPy*b.slashDir.dx);
+      if(along>-10 && along<60 && perp<28){
+        player.hp -= 26; player.hurtFlash = 0.3; player.staggerTimer = 1.1;
+        spawnParticles(player.x,player.y,'#ff5a3c',12);
+        b.slashHitDone = true;
+        if(player.hp<=0) killPlayer('Frappé par le poing du Colosse');
+      }
+    }
+    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(specialCooldown[0],specialCooldown[1]); }
+  }
+  else if(b.mode==='telegraphSpin'){
+    b.modeTimer -= dt;
+    if(b.modeTimer<=0){ b.mode='spin'; b.modeTimer=1.8; b.spinHitCd=0; }
+  }
+  else if(b.mode==='spin'){
+    b.modeTimer -= dt;
+    b.spinHitCd -= dt;
+    const d = dist(b.x,b.y,player.x,player.y);
+    if(d<80 && b.spinHitCd<=0){
+      player.hp -= 10; player.hurtFlash = 0.3; b.spinHitCd = 0.35;
+      spawnParticles(player.x,player.y,'#ff5a3c',6);
+      if(player.hp<=0) killPlayer('Consumé par la vague de braise');
+    }
+    if(b.modeTimer<=0){ b.mode='chase'; b.nextSpecialTimer=rand(specialCooldown[0],specialCooldown[1]); }
+  }
+
+  document.getElementById('bossBarFill').style.width = Math.max(0,b.hp/b.maxHp*100)+'%';
+  if(b.hp<=0) defeatBoss3();
+}
+
+function defeatBoss3(){
+  const b = dungeon3.boss;
+  spawnParticles(b.x,b.y,'#ff5a3c',34);
+  dungeon3.boss = null;
+  dungeon3.defeated = true;
+  dungeon3.sealed = false;
+  objects[idx(dungeon3.exitTx,dungeon3.exitTy)] = {type:'dungeon3_exit'};
+  document.getElementById('bossBarWrap').style.display = 'none';
+  const leftover = addItem('gem_bomb',1);
+  if(leftover>0) spawnDrop(b.x,b.y,'gem_bomb',leftover);
+  logMsg('Vous avez obtenu la Gemme explosive !');
+  updateHUD();
+}
+
+function drawBoss3(camX,camY){
+  if(!dungeon3 || !dungeon3.boss) return;
+  const b = dungeon3.boss;
+  const sx = b.x-camX, sy = b.y-camY;
+
+  const auraR = 34 + Math.sin(b.auraPhase*2)*3;
+  const auraGrad = ctx.createRadialGradient(sx,sy+6,4,sx,sy+6,auraR);
+  auraGrad.addColorStop(0, b.enraged ? 'rgba(255,60,20,0.4)' : 'rgba(255,140,40,0.28)');
+  auraGrad.addColorStop(1,'rgba(255,90,20,0)');
+  ctx.fillStyle = auraGrad;
+  ctx.beginPath(); ctx.arc(sx,sy+6,auraR,0,Math.PI*2); ctx.fill();
+
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(sx,sy+26,26,8,0,0,Math.PI*2); ctx.fill();
+
+  const bodyGrad = ctx.createLinearGradient(sx,sy-32,sx,sy+30);
+  bodyGrad.addColorStop(0, b.enraged ? '#5a1e12' : '#3a2418');
+  bodyGrad.addColorStop(1,'#1a0e08');
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.moveTo(sx,sy-32);
+  ctx.quadraticCurveTo(sx+28,sy-8, sx+20,sy+30);
+  ctx.quadraticCurveTo(sx,sy+22, sx-20,sy+30);
+  ctx.quadraticCurveTo(sx-28,sy-8, sx,sy-32);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,140,50,0.55)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // fissures incandescentes
+  const glow = 0.4+Math.sin(b.auraPhase*3)*0.2;
+  ctx.strokeStyle = `rgba(255,150,50,${glow})`; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(sx-8,sy-10); ctx.lineTo(sx,sy+4); ctx.lineTo(sx+9,sy-4); ctx.stroke();
+
+  ctx.fillStyle='#150c08';
+  ctx.beginPath(); ctx.ellipse(sx,sy-18,15,16,0,0,Math.PI*2); ctx.fill();
+
+  const eyeCol = (b.mode==='slash'||b.mode==='telegraphSlash') ? '#ffdf3c' : (b.enraged ? '#ff8a3c' : '#ff5a2c');
+  ctx.fillStyle = eyeCol;
+  ctx.shadowColor = eyeCol; ctx.shadowBlur = 9;
+  ctx.beginPath(); ctx.arc(sx-5,sy-19,3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx+5,sy-19,3,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  if(b.mode==='spin'){
+    const rot = performance.now()/70;
+    ctx.strokeStyle='rgba(255,140,50,0.85)'; ctx.lineWidth=3;
+    for(let i=0;i<3;i++){
+      const a = rot + i*(Math.PI*2/3);
+      ctx.beginPath();
+      ctx.moveTo(sx+Math.cos(a)*22, sy+Math.sin(a)*22);
+      ctx.lineTo(sx+Math.cos(a)*78, sy+Math.sin(a)*78);
+      ctx.stroke();
+    }
+  }
+  if(b.mode==='telegraphSpin'){
+    ctx.strokeStyle='rgba(255,90,20,0.6)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(sx,sy,80,0,Math.PI*2); ctx.stroke();
+  }
+  if(b.mode==='telegraphSlash'){
+    ctx.strokeStyle='rgba(255,90,20,0.75)'; ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(sx,sy);
+    ctx.lineTo(sx+b.slashDir.dx*160, sy+b.slashDir.dy*160);
+    ctx.stroke();
+  }
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(sx-24, sy-48, 48, 5);
+  ctx.fillStyle= b.enraged ? '#ff4a1a' : '#ff9d1f'; ctx.fillRect(sx-24, sy-48, 48*Math.max(0,b.hp/b.maxHp), 5);
 }
 function drawBoss2(camX,camY){
   if(!dungeon2 || !dungeon2.boss) return;
@@ -2398,7 +2810,7 @@ function stealFromPlayer(a){
   const stealables = [];
   for(let i=0;i<player.slots.length;i++){
     const s = player.slots[i];
-    if(s && ITEM_DEFS[s.id].cat!=='tool') stealables.push(i);
+    if(s && ITEM_DEFS[s.id].cat!=='tool' && s.id!=='gem_dash' && s.id!=='gem_bomb') stealables.push(i);
   }
   if(stealables.length===0) return false;
   const i = stealables[randi(0,stealables.length-1)];
@@ -2769,11 +3181,17 @@ function updatePlayer(dt){
   if(keys['d']||keys['arrowright']){ mx+=1; player.facing='right'; }
   if(mx!==0 && my!==0){ mx*=0.7071; my*=0.7071; }
 
-  if(player.staggerTimer>0) player.staggerTimer -= dt;
+if(player.staggerTimer>0) player.staggerTimer -= dt;
   const spdMult = player.staggerTimer>0 ? 0.35 : 1;
 
-  const nx = player.x + mx*player.speed*spdMult*dt;
-  const ny = player.y + my*player.speed*spdMult*dt;
+  let moveSpeed = player.speed*spdMult;
+  if(player.dashTimer>0){
+    mx = player.dashDx; my = player.dashDy;
+    moveSpeed = DASH_SPEED;
+  }
+
+  const nx = player.x + mx*moveSpeed*dt;
+  const ny = player.y + my*moveSpeed*dt;
   const nextXTile = Math.floor(nx/TILE);
   const curYTile = Math.floor(player.y/TILE);
 
@@ -2788,7 +3206,7 @@ function updatePlayer(dt){
     player.y = ny;
   }
   player.x = clamp(player.x, TILE, WORLD_W*TILE-TILE);
-  if(inDungeon2){
+ if(inDungeon2 || inDungeon3){
     player.y = clamp(player.y, BACKSTAGE_Y*TILE, WORLD_H*TILE-TILE);
   } else {
     player.y = clamp(player.y, TILE, OVERWORLD_H*TILE-TILE);
@@ -2811,7 +3229,13 @@ function updatePlayer(dt){
   if(player.hp<=0){ player.hp=0; killPlayer('Mort de faim'); }
   if(player.hurtFlash>0) player.hurtFlash -= dt;
   if(player.atkCd>0) player.atkCd -= dt;
+  if(player.dashCd>0) player.dashCd -= dt;
+  if(player.dashTimer>0){
+    player.dashTimer -= dt;
+    if(Math.random()<0.6) spawnParticles(player.x,player.y,'#7ecbff',2);
+  }
   if(player.harvestCd>0) player.harvestCd -= dt;
+  if(player.bombCd>0) player.bombCd -= dt;
 
   camera.x += (player.x-camera.x)*Math.min(1,dt*8);
   camera.y += (player.y-camera.y)*Math.min(1,dt*8);
@@ -2822,9 +3246,10 @@ function updatePlayer(dt){
 // Empêche la caméra de sortir de la salle du boss : même sur un très grand
 // écran (« dézoom »), le joueur ne voit jamais plus que la taille de l'arène.
 function clampCameraToDungeon(){
-  if(!inDungeon2 || !dungeon2) return;
-  const axMin = dungeon2.ox*TILE, axMax = (dungeon2.ox+dungeon2.w)*TILE;
-  const ayMin = dungeon2.oy*TILE, ayMax = (dungeon2.oy+dungeon2.h)*TILE;
+  const d = inDungeon2 ? dungeon2 : (inDungeon3 ? dungeon3 : null);
+  if(!d) return;
+  const axMin = d.ox*TILE, axMax = (d.ox+d.w)*TILE;
+  const ayMin = d.oy*TILE, ayMax = (d.oy+d.h)*TILE;
   const arenaPxW = axMax-axMin, arenaPxH = ayMax-ayMin;
 
   if(arenaPxW <= W){
@@ -2962,6 +3387,7 @@ function draw(){
   for(const z of zombies) drawZombie(z,camX,camY);
   drawEnt(camX,camY);
   drawBoss2(camX,camY);
+  drawBoss3(camX,camY);
   drawProjectiles(camX,camY);
   drawPlayer(camX,camY);
   drawNightOverlay(camX,camY);
@@ -3174,6 +3600,47 @@ function drawObject(tx,ty,o,camX,camY){
     ctx.strokeStyle = '#7ecbff'; ctx.lineWidth=2;
     ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
   }
+  else if(o.type==='dungeon3_wall'){
+    const grad = ctx.createLinearGradient(sx,sy,sx,sy+TILE);
+    grad.addColorStop(0,'#4a2416');
+    grad.addColorStop(1,'#1e0f08');
+    ctx.fillStyle = grad; ctx.fillRect(sx,sy,TILE,TILE);
+    ctx.strokeStyle = 'rgba(255,140,50,0.5)'; ctx.lineWidth=2; ctx.strokeRect(sx+2,sy+2,TILE-4,TILE-4);
+    const glow3 = 0.25+Math.sin(performance.now()/700+tx*0.7+ty*0.5)*0.15;
+    ctx.fillStyle = `rgba(255,140,50,${glow3})`;
+    ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2); ctx.fill();
+  } else if(o.type==='dungeon3_cube'){
+    const s = TILE-8;
+    const topH = 8;
+    ctx.fillStyle = '#4a2c1a';
+    ctx.fillRect(sx+4, sy+4+topH, s, s-topH);
+    ctx.strokeStyle = 'rgba(255,140,50,0.45)'; ctx.lineWidth=1.5;
+    ctx.strokeRect(sx+4, sy+4+topH, s, s-topH);
+    ctx.fillStyle = '#7a4426';
+    ctx.beginPath();
+    ctx.moveTo(sx+4, sy+4+topH);
+    ctx.lineTo(sx+4+s/2, sy+4);
+    ctx.lineTo(sx+4+s, sy+4+topH);
+    ctx.lineTo(sx+4+s/2, sy+4+topH*2);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,140,50,0.6)'; ctx.stroke();
+  } else if(o.type==='dungeon3_entrance'){
+    ctx.fillStyle = '#5a3a2a';
+    ctx.beginPath(); ctx.ellipse(cx,cy+5,13,8,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#3a2418';
+    ctx.beginPath(); ctx.ellipse(cx,cy+5,9,5,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,140,50,0.5)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(cx,cy+5,13,8,0,0,Math.PI*2); ctx.stroke();
+    const pulse3 = 3+Math.sin(performance.now()/500)*1.5;
+    ctx.fillStyle = 'rgba(255,140,50,0.45)';
+    ctx.beginPath(); ctx.arc(cx,cy+5,pulse3,0,Math.PI*2); ctx.fill();
+  } else if(o.type==='dungeon3_exit'){
+    const pulse4 = Math.sin(performance.now()/300)*0.15+0.35;
+    ctx.fillStyle = `rgba(255,140,50,${pulse4})`;
+    ctx.fillRect(sx+3,sy+3,TILE-6,TILE-6);
+    ctx.strokeStyle = '#ff9d1f'; ctx.lineWidth=2;
+    ctx.strokeRect(sx+3,sy+3,TILE-6,TILE-6);
+  }
 }
 
 function drawAnimal(a,camX,camY){
@@ -3379,6 +3846,7 @@ function loop(now){
     updateAnimals(dt);
     updateEnt(dt);
     updateBoss2(dt);
+    updateBoss3(dt);
     updateProjectiles(dt);
     updateSaplings(dt);
     updatePlates();
