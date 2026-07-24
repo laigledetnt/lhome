@@ -427,6 +427,7 @@ function spawnDrop(x,y,id,count){
   drops.push({x:x+rand(-8,8), y:y+rand(-8,8), id, count});
 }
 function updateDrops(dt){
+  if(gameOver) return;
   for(let i=drops.length-1;i>=0;i--){
     const d = drops[i];
     if(dist(d.x,d.y,player.x,player.y) < 22){
@@ -1208,7 +1209,7 @@ window.addEventListener('keydown', e=>{
 });
 window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
 document.getElementById('closeCraft').onclick = ()=> toggleCraft(false);
-document.getElementById('restartBtn').onclick = ()=>{ startGame(); };
+document.getElementById('restartBtn').onclick = ()=>{ respawnPlayer(); };
 
 /* =========================================================
    ACTIONS JOUEUR
@@ -2229,10 +2230,16 @@ function updateProjectiles(dt){
         if(ent.hp<=0) defeatEnt();
         hit = true;
       }
-      if(!hit && dungeon2 && dungeon2.boss && dist(p.x,p.y,dungeon2.boss.x,dungeon2.boss.y) < 26){
+     if(!hit && dungeon2 && dungeon2.boss && dist(p.x,p.y,dungeon2.boss.x,dungeon2.boss.y) < 26){
         dungeon2.boss.hp -= p.dmg;
         spawnParticles(dungeon2.boss.x,dungeon2.boss.y,'#7ecbff',8);
         if(dungeon2.boss.hp<=0) defeatBoss2();
+        hit = true;
+      }
+      if(!hit && dungeon3 && dungeon3.boss && dist(p.x,p.y,dungeon3.boss.x,dungeon3.boss.y) < 26){
+        dungeon3.boss.hp -= p.dmg;
+        spawnParticles(dungeon3.boss.x,dungeon3.boss.y,'#ff5a2c',8);
+        if(dungeon3.boss.hp<=0) defeatBoss3();
         hit = true;
       }
       if(hit){ projectiles.splice(i,1); continue; }
@@ -3165,9 +3172,51 @@ if(t === currentWolfAlpha){
 }
 
 function killPlayer(reason){
+  if(gameOver) return; // évite de faire tomber l'inventaire plusieurs fois
   gameOver = true;
   document.getElementById('deathReason').textContent = reason || '';
   document.getElementById('deathScreen').style.display = 'flex';
+
+  // L'inventaire tombe au sol à l'endroit de la mort, comme dans un jeu
+  // de survie classique.
+  for(let i=0;i<player.slots.length;i++){
+    const s = player.slots[i];
+    if(s){
+      spawnDrop(player.x, player.y, s.id, s.count);
+      player.slots[i] = null;
+    }
+  }
+  updateHUD();
+}
+function respawnPlayer(){
+  document.getElementById('deathScreen').style.display = 'none';
+  document.getElementById('bossBarWrap').style.display = 'none';
+
+  // Si un combat de boss était en cours, on l'annule proprement : le boss
+  // n'est pas considéré comme vaincu, il réapparaîtra si vous retournez
+  // à son entrée.
+  if(dungeon2){ dungeon2.boss = null; dungeon2.sealed = false; }
+  if(dungeon3){ dungeon3.boss = null; dungeon3.sealed = false; }
+  inDungeon2 = false;
+  inDungeon3 = false;
+
+  player.x = (WORLD_W*TILE)/2;
+  player.y = (OVERWORLD_H*TILE)/2;
+  player.hp = player.maxHp;
+  player.hunger = player.maxHunger;
+  player.hurtFlash = 0;
+  player.staggerTimer = 0;
+  player.atkCd = 0;
+  player.harvestCd = 0;
+  player.dashCd = 0;
+  player.dashTimer = 0;
+  player.bombCd = 0;
+  player.slots = new Array(N_SLOTS).fill(null);
+
+  camera.x = player.x; camera.y = player.y;
+
+  gameOver = false;
+  updateHUD();
 }
 
 /* =========================================================
