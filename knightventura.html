@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Donjon - Prototype v3</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #0a0a0d;
+    font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+    color: #e8e6df;
+    overflow: hidden;
+    user-select: none;
+  }
+  #game-container {
+    position: relative;
+    width: 960px; height: 600px;
+    margin: 20px auto;
+    box-shadow: 0 0 60px 10px rgba(60,110,255,0.15);
+    border: 2px solid #2a2c36;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  canvas { display: block; background: #0d0e12; }
+
+  #hud {
+    position: absolute; top: 0; left: 0; width: 100%;
+    padding: 10px 16px; pointer-events: none;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    font-size: 14px;
+  }
+  #hpBarWrap {
+    width: 220px; height: 20px; background: #1c1d24;
+    border: 1px solid #444; border-radius: 4px; overflow: hidden;
+  }
+  #hpBarFill {
+    height: 100%; background: linear-gradient(90deg,#8a1f2b,#e0384a);
+    width: 100%; transition: width 0.15s;
+  }
+  #roomInfo { text-align: right; text-shadow: 0 0 4px #000; }
+  #dashInfo, #specialInfo, #abilitiesInfo { margin-top: 4px; font-size: 12px; color: #8fb8ff; text-shadow: 0 0 4px #000;}
+  #specialInfo { color: #ffd76b; }
+  #abilitiesInfo { color: #c98bff; }
+
+  .overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(6,6,10,0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px;
+    z-index: 10;
+  }
+  .hidden { display: none !important; }
+  .overlay h1 { color: #8fb8ff; text-shadow: 0 0 12px rgba(80,140,255,0.6); letter-spacing: 2px; margin: 0; }
+  .overlay p.sub { color: #999; margin: -8px 0 6px 0; font-size: 13px; text-align:center; max-width: 620px; }
+
+  .cards { display: flex; gap: 16px; }
+  .card {
+    width: 165px; padding: 14px; background: #1a1b22;
+    border: 2px solid #33353f; border-radius: 8px; cursor: pointer;
+    text-align: center; transition: 0.15s;
+  }
+  .card:hover { border-color: #6fa8ff; box-shadow: 0 0 16px rgba(100,150,255,0.4); transform: translateY(-4px); }
+  .card .icon { width: 54px; height: 54px; margin: 0 auto 10px auto; border-radius: 8px; overflow: hidden; }
+  .card h3 { margin: 0 0 4px 0; font-size: 15px; color: #fff; }
+  .card .specialLine { font-size: 11px; color: #ffd76b; margin: 0 0 6px 0; }
+  .card p { margin: 0; font-size: 11.5px; color: #aaa; line-height: 1.4; }
+
+  .doorCards .card { width: 190px; }
+  .doorCards .icon { width: 60px; height: 60px; }
+
+  button.bigBtn {
+    padding: 10px 26px; font-size: 15px; background: #26466b; color: #fff;
+    border: 1px solid #4a86c9; border-radius: 6px; cursor: pointer;
+  }
+  button.bigBtn:hover { background: #2f5988; }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas" width="960" height="600"></canvas>
+
+  <div id="hud">
+    <div>
+      <div id="hpBarWrap"><div id="hpBarFill"></div></div>
+      <div id="dashInfo">DASH: prêt (Espace)</div>
+      <div id="specialInfo">Spécial (clic droit): prêt</div>
+      <div id="abilitiesInfo"></div>
+    </div>
+    <div id="roomInfo">Salle 0</div>
+  </div>
+
+  <div id="difficultySelect" class="overlay">
+    <h1>CHOISIS TA DIFFICULTÉ</h1>
+    <p class="sub">Ce choix définit comment tes PV se comportent au fil du donjon.</p>
+    <div class="cards" id="difficultyCards"></div>
+  </div>
+
+  <div id="weaponSelect" class="overlay hidden">
+    <h1>CHOISIS TON ARME</h1>
+    <p class="sub">Clic gauche : attaque · Clic droit : capacité spéciale de l'arme · Espace : dash · Q/E : capacités actives (débloquées après un boss). Les salles ont des formes et des trous variables — évite le vide !</p>
+    <div class="cards" id="weaponCards"></div>
+  </div>
+
+  <div id="upgradeScreen" class="overlay hidden">
+    <h1>BOSS VAINCU !</h1>
+    <p class="sub">Choisis une amélioration (passive) ou une capacité active</p>
+    <div class="cards" id="upgradeCards"></div>
+  </div>
+
+  <div id="gameOver" class="overlay hidden">
+    <h1 style="color:#e0384a;">TU ES MORT</h1>
+    <p class="sub" id="gameOverStats"></p>
+    <button class="bigBtn" onclick="location.reload()">Recommencer</button>
+  </div>
+
+  <div id="victory" class="overlay hidden">
+    <h1 style="color:#ffd76b;">DONJON VAINCU</h1>
+    <p class="sub" id="victoryStats"></p>
+    <button class="bigBtn" onclick="location.reload()">Recommencer</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   SPRITES — remplace / ajoute les chemins ici.
+   Convention utilisée par le code :
+     - IMG['player_sword'], IMG['player_spear'], IMG['player_bow'],
+       IMG['player_daggers'], IMG['player_hammer']
+       -> sprite joueur+arme combiné (face vers la droite par défaut,
+          le code le fait pivoter selon la direction de visée).
+     - IMG['player_unarmed'] -> sprite joueur mains nues, utilisé à la
+       place du sprite armé pendant l'animation d'attaque des armes de
+       mêlée (épée, lance, dagues, marteau), car la lame/l'arme est déjà
+       représentée par l'effet de swing animé. L'arc garde toujours son
+       sprite armé, y compris pendant le tir.
+     - IMG['tile_floor'], IMG['tile_wall'] -> tuiles répétées en pattern
+       pour le sol et les murs (48x48 recommandé, mais toute taille
+       fonctionne avec createPattern car elle est redimensionnée
+       automatiquement à TILE px avant d'être utilisée en pattern).
+       CHAQUE ZONE A SES PROPRES TUILES : IMG['tile_floor_z0']...['tile_floor_z4']
+       et IMG['tile_wall_z0']...['tile_wall_z4']. Si une clé de zone n'est pas
+       fournie, le jeu retombe sur 'tile_floor'/'tile_wall' génériques, puis
+       sur une couleur unie si rien n'est chargé.
+     - IMG['grunt'], IMG['archer'], IMG['brute'], IMG['mage'], IMG['boss']
+       -> sprites ennemis de base. Il est possible de fournir des variantes
+       par zone avec le suffixe _z0.._z4 (ex: IMG['grunt_z2']) ; sinon le
+       sprite générique du type est utilisé, recoloré en secours selon la
+       couleur d'accent de la zone.
+     - IMG['decor_XXX_z0']..['decor_XXX_z4'] -> objets de décor purement
+       visuels (statues, débris, plantes...) dispersés au sol dans chaque
+       zone. Vois la liste `decorKeys` de chaque zone dans ZONES plus bas :
+       ajoute juste loadImage(key, 'assets/....png') pour la clé voulue et
+       le décor apparaîtra automatiquement, sans autre changement de code.
+   Tant qu'une image n'est pas chargée, le jeu dessine une forme de
+   substitution, donc rien ne casse si tu n'as pas encore tout fourni.
+   ============================================================ */
+const IMG = {};
+function loadImage(key, src) {
+  const img = new Image();
+  img.src = src;
+  IMG[key] = img;
+}
+// --- sprites communs (joueur, tuiles/ennemis génériques de secours) ---
+loadImage('player_sword', 'assets/player_sword.png');
+loadImage('player_unarmed', 'assets/player_unarmed.png');
+loadImage('player_spear', 'assets/player_spear.png');
+loadImage('player_bow', 'assets/player_bow.png');
+loadImage('player_daggers', 'assets/player_daggers.png');
+loadImage('player_hammer', 'assets/player_hammer.png');
+loadImage('tile_floor', 'assets/floor.png');
+loadImage('tile_wall', 'assets/wall.png');
+loadImage('grunt', 'assets/grunt.png');
+loadImage('archer', 'assets/archer.png');
+loadImage('brute', 'assets/brute.png');
+loadImage('mage', 'assets/mage.png');
+loadImage('boss', 'assets/boss.png');
+
+// --- assets spécifiques par zone (sol, mur, boss, décor) ---
+// Remplace les chemins ci-dessous par tes fichiers. Rien ne casse si un
+// fichier manque : le jeu retombe sur le générique puis sur une couleur unie.
+for (let zi = 0; zi < 5; zi++) {
+  loadImage('tile_floor_z'+zi, 'assets/zone'+zi+'/floor.png');
+  loadImage('tile_wall_z'+zi,  'assets/zone'+zi+'/wall.png');
+  loadImage('boss_z'+zi,       'assets/zone'+zi+'/boss.png');
+  loadImage('grunt_z'+zi,      'assets/zone'+zi+'/grunt.png');
+  loadImage('archer_z'+zi,     'assets/zone'+zi+'/archer.png');
+  loadImage('brute_z'+zi,      'assets/zone'+zi+'/brute.png');
+  loadImage('mage_z'+zi,       'assets/zone'+zi+'/mage.png');
+}
+// exemples de clés de décor attendues par zone (voir ZONES.decorKeys) :
+loadImage('decor_pillar_z0', 'assets/zone0/decor_pillar.png');
+loadImage('decor_rubble_z0', 'assets/zone0/decor_rubble.png');
+loadImage('decor_reed_z1',   'assets/zone1/decor_reed.png');
+loadImage('decor_bones_z1',  'assets/zone1/decor_bones.png');
+loadImage('decor_anvil_z2',  'assets/zone2/decor_anvil.png');
+loadImage('decor_ember_z2',  'assets/zone2/decor_ember.png');
+loadImage('decor_icicle_z3', 'assets/zone3/decor_icicle.png');
+loadImage('decor_crystal_z3','assets/zone3/decor_crystal.png');
+loadImage('decor_statue_z4', 'assets/zone4/decor_statue.png');
+loadImage('decor_lantern_z4','assets/zone4/decor_lantern.png');
+
+function drawSprite(img, x, y, size, angle, fallback) {
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle || 0);
+    ctx.drawImage(img, -size/1.5, -size/1.5, size*1.5, size*1.5);
+    ctx.restore();
+  } else {
+    fallback();
+  }
+}
+
+/* ============================================================
+   SETUP + GRILLE DE TUILES
+   ============================================================ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const TILE = 48;
+const GC = 30, GR = 18; // colonnes / lignes de la grille — salle bien plus grande que l'écran
+const ROOM_CENTER_X = GC*TILE/2;
+const ROOM_CENTER_Y = GR*TILE/2;
+const WORLD_W = GC*TILE, WORLD_H = GR*TILE;
+
+// caméra centrée sur le joueur, bornée aux limites de la salle
+const camera = { x: ROOM_CENTER_X, y: ROOM_CENTER_Y };
+function updateCamera(dt) {
+  let tx = player.x, ty = player.y;
+  tx = WORLD_W > W ? Math.max(W/2, Math.min(WORLD_W - W/2, tx)) : WORLD_W/2;
+  ty = WORLD_H > H ? Math.max(H/2, Math.min(WORLD_H - H/2, ty)) : WORLD_H/2;
+  const smooth = Math.min(dt * 7, 1);
+  camera.x += (tx - camera.x) * smooth;
+  camera.y += (ty - camera.y) * smooth;
+}
+function worldMouse() {
+  return { x: mouse.x + camera.x - W/2, y: mouse.y + camera.y - H/2 };
+}
+
+// '#' = mur (infranchissable), '.' = sol, '~' = trou/vide (infranchissable, visuel de gouffre)
+
+function generateRoomLayout() {
+  const grid = [];
+  for (let r = 0; r < GR; r++) {
+    const row = [];
+    for (let c = 0; c < GC; c++) {
+      const isBorder = (r === 0 || r === GR-1 || c === 0 || c === GC-1);
+      row.push(isBorder ? '#' : '.');
+    }
+    grid.push(row);
+  }
+  scatterPits(grid);
+  scatterPillars(grid);
+  return grid;
+}
+
+// quelques trous ponctuels de temps en temps, pas une salle entière façonnée par du vide
+function scatterPits(grid) {
+  const count = Math.floor(Math.random()*3); // 0 à 2 trous par salle
+  for (let i = 0; i < count; i++) {
+    const cx = 4 + Math.random()*(GC-8);
+    const cy = 4 + Math.random()*(GR-8);
+    if (Math.hypot(cx-GC/2, cy-GR/2) < 3.5) continue; // pas sur le spawn central
+    const rad = 1.2 + Math.random()*1.6;
+    for (let r = Math.max(1, Math.floor(cy-rad)); r <= Math.min(GR-2, Math.ceil(cy+rad)); r++) {
+      for (let c = Math.max(1, Math.floor(cx-rad)); c <= Math.min(GC-2, Math.ceil(cx+rad)); c++) {
+        if (Math.hypot(c-cx, r-cy) < rad) grid[r][c] = '~';
+      }
+    }
+  }
+}
+
+// quelques piliers isolés pour donner du relief à la grande salle
+function scatterPillars(grid) {
+  const count = 2 + Math.floor(Math.random()*4);
+  for (let i = 0; i < count; i++) {
+    const c = 3 + Math.floor(Math.random()*(GC-6));
+    const r = 3 + Math.floor(Math.random()*(GR-6));
+    if (Math.hypot(c-GC/2, r-GR/2) < 3.5) continue;
+    if (grid[r][c] === '.') grid[r][c] = '#';
+  }
+}
+
+function isFloorAt(px, py) {
+  const c = Math.floor(px / TILE);
+  const r = Math.floor(py / TILE);
+  if (r < 0 || r >= GR || c < 0 || c >= GC) return false;
+  return currentRoom.grid[r][c] === '.';
+}
+function isWalkable(px, py, radius) {
+  // On réduit légèrement le rayon de collision pour la navigation (0.85)
+  // Cela permet aux boss de passer dans des zones étroites sans rester bloqués
+  const r = radius * 0.1; 
+  return isFloorAt(px, py) &&
+    isFloorAt(px - r, py) && isFloorAt(px + r, py) &&
+    isFloorAt(px, py - r) && isFloorAt(px, py + r);
+}
+function moveEntity(e, dx, dy) {
+  if (dx !== 0) { const nx = e.x + dx; if (isWalkable(nx, e.y, e.radius)) e.x = nx; }
+  if (dy !== 0) { const ny = e.y + dy; if (isWalkable(e.x, ny, e.radius)) e.y = ny; }
+}
+
+// Déplace une entité (ennemi/boss) vers une direction voulue en évitant les
+// obstacles (murs, piliers, trous) : si la trajectoire directe est bloquée,
+// on teste des angles alternatifs de plus en plus larges autour de la
+// direction souhaitée, façon "steering", pour trouver un passage libre.
+// Ça évite que les ennemis restent bêtement coincés contre un pilier ou
+// hésitent au bord d'un gouffre au lieu de le contourner.
+function moveTowardsAvoiding(e, dirX, dirY, speed, dt) {
+  const step = speed * dt;
+  if (step <= 0) return;
+  const len = Math.hypot(dirX, dirY) || 1;
+  dirX /= len; dirY /= len;
+  const baseAngle = Math.atan2(dirY, dirX);
+  const testOffsets = [0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1, 1.6, -1.6];
+  for (const off of testOffsets) {
+    const a = baseAngle + off;
+    const tx = e.x + Math.cos(a) * step;
+    const ty = e.y + Math.sin(a) * step;
+    if (isWalkable(tx, ty, e.radius)) { e.x = tx; e.y = ty; return; }
+  }
+  // dernier recours : glissement classique par axe (permet de longer un mur)
+  moveEntity(e, dirX * step, dirY * step);
+}
+function randomFloorTile(grid) {
+  for (let tries = 0; tries < 80; tries++) {
+    const r = 1 + Math.floor(Math.random()*(GR-2));
+    const c = 1 + Math.floor(Math.random()*(GC-2));
+    if (grid[r][c] === '.') return { x: (c+0.5)*TILE, y: (r+0.5)*TILE };
+  }
+  return { x: ROOM_CENTER_X, y: ROOM_CENTER_Y };
+}
+function findSpawnPoint(grid) {
+  const cr = Math.floor(GR/2), cc = Math.floor(GC/2);
+  for (let radius = 0; radius < Math.max(GC, GR); radius++) {
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        if (Math.max(Math.abs(dr), Math.abs(dc)) !== radius) continue;
+        const r = cr+dr, c = cc+dc;
+        if (r < 0 || r >= GR || c < 0 || c >= GC) continue;
+        if (grid[r][c] === '.') return { x: (c+0.5)*TILE, y: (r+0.5)*TILE };
+      }
+    }
+  }
+  return { x: ROOM_CENTER_X, y: ROOM_CENTER_Y };
+}
+
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') tryDash();
+  if (e.code === 'KeyQ') activateAbility(0);
+  if (e.code === 'KeyE') activateAbility(1);
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+const mouse = { x: W/2, y: H/2, down: false };
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - r.left;
+  mouse.y = e.clientY - r.top;
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 2) { trySpecialAttack(); return; }
+  mouse.down = true; tryAttack();
+});
+canvas.addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
+
+/* ============================================================
+   ARMES (5 au choix) + capacité spéciale + poids pour le hit-stop
+   ============================================================ */
+const WEAPONS = [
+  { key:'sword', name:'Épée', type:'melee', color:'#c9d4de', damage:16, range:70, arc:1.15, cooldown:0.38, hitstop:0.015,
+    desc:"Équilibrée, coup en arc large, bon compromis vitesse/dégâts.",
+    special:{ name:'Fente foudroyante', desc:'Bond en avant tranchant, dégâts amplifiés.', cooldown:3.0 } },
+  { key:'spear', name:'Lance', type:'melee', color:'#d9b25a', damage:14, range:110, arc:0.45, cooldown:0.5, hitstop:0.02,
+    desc:"Longue portée, arc étroit, touche à distance en ligne droite.",
+    special:{ name:'Empalement', desc:'Transperce tous les ennemis alignés sur une longue ligne.', cooldown:3.5 } },
+  { key:'bow', name:'Arc', type:'ranged', color:'#7fd08a', damage:25, range:400, arc:0, cooldown:0.7, projectileSpeed:430, hitstop:0,
+    desc:"Attaque à distance, portée limitée et cadence lente : vise juste, la sécurité n'est pas garantie.",
+    special:{ name:'Tir en éventail', desc:'Trois flèches tirées en cône.', cooldown:3.8 } },
+  { key:'daggers', name:'Dagues jumelles', type:'melee', color:'#b57ed0', damage:10, range:55, arc:1.4, cooldown:0.18, hitstop:0,
+    desc:"Très rapide, dégâts faibles par coup mais cadence élevée.",
+    special:{ name:'Tourbillon', desc:'Frappe tous les ennemis proches à 360°.', cooldown:4.0 } },
+  { key:'hammer', name:'Marteau', type:'melee', color:'#e0384a', damage:32, range:80, arc:2.2, cooldown:0.85, hitstop:0.045,
+    desc:"Lent mais dévastateur, arc très large, grosse gerbe de particules.",
+    special:{ name:'Onde de choc', desc:'Explosion au sol : dégâts + repousse les ennemis.', cooldown:5.0 } },
+];
+
+let selectedWeapon = null;
+
+/* ============================================================
+   DIFFICULTÉ — 3 niveaux qui changent la façon dont les PV du joueur
+   se comportent au fil du donjon (choisi avant l'arme).
+   ============================================================ */
+const DIFFICULTIES = [
+  { key:'easy', name:'Facile', color:'#6bffa0',
+    desc:'Tes PV se régénèrent entièrement à chaque nouvelle salle.' },
+  { key:'normal', name:'Normal', color:'#8fb8ff',
+    desc:"Pas de régénération entre les salles : gère tes PV sur tout le donjon." },
+  { key:'hard', name:'Difficile', color:'#e0384a',
+    desc:'Mode no-hit : un seul point de vie du début à la fin, la moindre touche est fatale.' },
+];
+let difficulty = 'normal';
+
+function buildDifficultyCards() {
+  const div = document.getElementById('difficultyCards');
+  DIFFICULTIES.forEach(d => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<div class="icon" style="background:${d.color};border-radius:50%;"></div><h3>${d.name}</h3><p>${d.desc}</p>`;
+    card.onclick = () => {
+      difficulty = d.key;
+      if (difficulty === 'hard') { player.maxHp = 1; player.hp = 1; }
+      document.getElementById('difficultySelect').classList.add('hidden');
+      document.getElementById('weaponSelect').classList.remove('hidden');
+    };
+    div.appendChild(card);
+  });
+}
+buildDifficultyCards();
+
+/* ============================================================
+   ZONES — 5 biomes qui s'enchaînent vers la fin du jeu.
+   Chaque zone définit : ses tuiles (sol/mur), sa couleur de lumière
+   (torches + rebords de trous), les types d'ennemis qui peuvent y
+   apparaître, son boss (nom + couleur de secours), et les clés de
+   décor à disperser au sol. Pour ajouter un objet de décor, il suffit
+   de charger l'image avec loadImage() plus haut et de mentionner sa
+   clé dans decorKeys ci-dessous.
+   ============================================================ */
+const ZONES = [
+  { name:'Cryptes de Pierre', floorKey:'tile_floor_z0', wallKey:'tile_wall_z0',
+    lightColor:'90,150,255', bgColor:'#0a0a0d',
+    meleeTypes:['grunt'], rangedTypes:['archer'],
+    bossName:'Gardien de Pierre', bossKey:'boss_z0', bossColor:'#9d3ad1', bossKind:'guardian',
+    decorKeys:['decor_pillar_z0','decor_rubble_z0'] },
+  { name:'Marais Empoisonnés', floorKey:'tile_floor_z1', wallKey:'tile_wall_z1',
+    lightColor:'120,255,140', bgColor:'#0a0d0a',
+    meleeTypes:['grunt','brute'], rangedTypes:['archer'],
+    bossName:'Colosse des Marais', bossKey:'boss_z1', bossColor:'#4fae5a', bossKind:'colossus',
+    decorKeys:['decor_reed_z1','decor_bones_z1'] },
+  { name:'Forge Ardente', floorKey:'tile_floor_z2', wallKey:'tile_wall_z2',
+    lightColor:'255,140,60', bgColor:'#100a08',
+    meleeTypes:['grunt','brute'], rangedTypes:['archer','mage'],
+    bossName:'Seigneur des Flammes', bossKey:'boss_z2', bossColor:'#e0384a', bossKind:'flamelord',
+    decorKeys:['decor_anvil_z2','decor_ember_z2'] },
+  { name:'Cavernes de Glace', floorKey:'tile_floor_z3', wallKey:'tile_wall_z3',
+    lightColor:'150,220,255', bgColor:'#080b10',
+    meleeTypes:['brute'], rangedTypes:['archer','mage'],
+    bossName:'Reine des Glaces', bossKey:'boss_z3', bossColor:'#6bc8ff', bossKind:'icequeen',
+    decorKeys:['decor_icicle_z3','decor_crystal_z3'] },
+  { name:'Sanctuaire Céleste', floorKey:'tile_floor_z4', wallKey:'tile_wall_z4',
+    lightColor:'255,215,120', bgColor:'#100d08',
+    meleeTypes:['grunt','brute'], rangedTypes:['archer','mage'],
+    bossName:'Avatar Céleste', bossKey:'boss_z4', bossColor:'#ffd76b', bossKind:'celestial',
+    decorKeys:['decor_statue_z4','decor_lantern_z4'] },
+];
+let zoneIndex = 0;
+function currentZone() { return ZONES[Math.min(zoneIndex, ZONES.length-1)]; }
+// Multiplicateurs de difficulté qui augmentent avec la zone (indépendants du
+// scaling de PV) : les ennemis frappent plus fort et se déplacent un peu plus
+// vite à mesure qu'on avance dans le donjon, pour une progression plus nette
+// d'une zone à l'autre que le simple scaling de vie.
+function zoneDmgMult() { return 1 + zoneIndex * 0.22; }
+function zoneSpeedMult() { return 1 + zoneIndex * 0.07; }
+
+/* ============================================================
+   PARTICULES (avec gravité optionnelle + fusion additive = effet énergie)
+   ============================================================ */
+let particles = [];
+function spawnParticles(x, y, color, count, speed=180, life=0.5, size=4, gravity=0) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = speed * (0.4 + Math.random()*0.9);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      life: life * (0.6 + Math.random()*0.8),
+      maxLife: life,
+      color, gravity,
+      size: size * (0.6 + Math.random()*0.8)
+    });
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy += p.gravity * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= 0.92; p.vy *= 0.96;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+function drawParticles() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of particles) {
+    const t = Math.max(p.life / p.maxLife, 0);
+    ctx.globalAlpha = t;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * t, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/* ============================================================
+   EFFETS THÉÂTRAUX : slash/onde/ligne, rayons d'éclat, hit-stop,
+   flash d'écran, vignette de dégâts, tremblement
+   ============================================================ */
+let slashEffects = [];
+function updateSlashEffects(dt) {
+  for (let i = slashEffects.length - 1; i >= 0; i--) {
+    slashEffects[i].life -= dt;
+    if (slashEffects[i].life <= 0) slashEffects.splice(i, 1);
+  }
+}
+function drawSlashEffects() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const s of slashEffects) {
+    const t = Math.max(s.life / s.maxLife, 0);
+    ctx.fillStyle = s.color; ctx.strokeStyle = '#ffffff';
+    if (s.type === 'wedge') {
+      ctx.globalAlpha = t * 0.75;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.arc(s.x, s.y, s.range, s.angle - s.arc/2, s.angle + s.arc/2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = t;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.range, s.angle - s.arc/2, s.angle + s.arc/2);
+      ctx.stroke();
+    } else if (s.type === 'ring') {
+      const r = s.range * (1.15 - t*0.15);
+      ctx.globalAlpha = t * 0.9;
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 6*t + 2;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI*2); ctx.stroke();
+    } else if (s.type === 'line') {
+      ctx.globalAlpha = t * 0.9;
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = (s.width || 8) * t + 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x + Math.cos(s.angle)*s.range, s.y + Math.sin(s.angle)*s.range);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+let burstEffects = [];
+function spawnKillBurst(x, y, color, big) {
+  burstEffects.push({ x, y, color, rays: big ? 16 : 9, length: big ? 110 : 55, life: big ? 0.45 : 0.3, maxLife: big ? 0.45 : 0.3 });
+}
+function updateBurstEffects(dt) {
+  for (let i = burstEffects.length - 1; i >= 0; i--) {
+    burstEffects[i].life -= dt;
+    if (burstEffects[i].life <= 0) burstEffects.splice(i, 1);
+  }
+}
+function drawBurstEffects() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of burstEffects) {
+    const t = Math.max(b.life / b.maxLife, 0);
+    const growth = 1 - t;
+    const len = b.length * growth;
+    ctx.strokeStyle = b.color;
+    ctx.globalAlpha = t * 0.9;
+    ctx.lineWidth = 3 * t + 1;
+    for (let i = 0; i < b.rays; i++) {
+      const a = (Math.PI*2/b.rays) * i;
+      ctx.beginPath();
+      ctx.moveTo(b.x + Math.cos(a)*len*0.35, b.y + Math.sin(a)*len*0.35);
+      ctx.lineTo(b.x + Math.cos(a)*len, b.y + Math.sin(a)*len);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+let shakeTime = 0, shakeMag = 0;
+function triggerShake(mag, dur) { shakeMag = Math.max(shakeMag, mag); shakeTime = Math.max(shakeTime, dur); }
+
+let hitStopTimer = 0;
+function triggerHitStop(dur) { hitStopTimer = Math.max(hitStopTimer, dur); }
+
+let flashAlpha = 0, flashColor = '#ffffff';
+function triggerFlash(color, alpha) { flashColor = color; flashAlpha = Math.max(flashAlpha, alpha); }
+
+let vignetteAlpha = 0;
+function triggerVignette(alpha) { vignetteAlpha = Math.max(vignetteAlpha, alpha); }
+
+let damageTexts = [];
+function spawnDamageText(x, y, amount, isCrit) {
+  damageTexts.push({
+    x, y: y - 10, text: Math.round(amount) + (isCrit ? '!' : ''),
+    life: 0.7, maxLife: 0.7,
+    color: isCrit ? '#ffd76b' : '#ffffff',
+    size: isCrit ? 19 : 13,
+    vy: -50
+  });
+}
+function updateDamageTexts(dt) {
+  for (let i = damageTexts.length - 1; i >= 0; i--) {
+    const d = damageTexts[i];
+    d.y += d.vy * dt; d.vy += 80 * dt; d.life -= dt;
+    if (d.life <= 0) damageTexts.splice(i, 1);
+  }
+}
+function drawDamageTexts() {
+  ctx.textAlign = 'center';
+  for (const d of damageTexts) {
+    const elapsed = d.maxLife - d.life;
+    const pop = elapsed < 0.12 ? 1 + (0.12-elapsed)/0.12*0.6 : 1;
+    const t = Math.max(d.life / d.maxLife, 0);
+    ctx.globalAlpha = t;
+    ctx.fillStyle = d.color;
+    ctx.font = 'bold ' + Math.round(d.size*pop) + 'px Trebuchet MS';
+    ctx.fillText(d.text, d.x, d.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+}
+
+/* ---- petit impact au point de contact (à chaque coup, pas juste à la mort) ---- */
+let impactEffects = [];
+function spawnImpactBurst(x, y, angle, color) {
+  impactEffects.push({ x, y, angle, color, life: 0.16, maxLife: 0.16 });
+  spawnParticles(x, y, color, 5, 260, 0.22, 2.5);
+}
+function updateImpactEffects(dt) {
+  for (let i = impactEffects.length - 1; i >= 0; i--) {
+    impactEffects[i].life -= dt;
+    if (impactEffects[i].life <= 0) impactEffects.splice(i, 1);
+  }
+}
+function drawImpactEffects() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const s of impactEffects) {
+    const t = Math.max(s.life / s.maxLife, 0);
+    const len = 22 * (1 - t) + 6;
+    ctx.strokeStyle = '#ffffff';
+    ctx.globalAlpha = t;
+    ctx.lineWidth = 2.5;
+    for (const off of [-0.5, 0, 0.5]) {
+      const a = s.angle + off;
+      ctx.beginPath();
+      ctx.moveTo(s.x + Math.cos(a)*4, s.y + Math.sin(a)*4);
+      ctx.lineTo(s.x + Math.cos(a)*len, s.y + Math.sin(a)*len);
+      ctx.stroke();
+    }
+    ctx.fillStyle = s.color;
+    ctx.globalAlpha = t * 0.8;
+    ctx.beginPath(); ctx.arc(s.x, s.y, 10*t + 3, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/* ---- zoom d'impact en espace écran (punch-in bref sur gros coups) ---- */
+let hitZoom = 0;
+function triggerHitZoom(amount) { hitZoom = Math.max(hitZoom, amount); }
+
+/* ============================================================
+   JOUEUR
+   ============================================================ */
+const player = {
+  x: W/2, y: H/2, radius: 15,
+  speed: 220,
+  hp: 100, maxHp: 100,
+  angle: 0,
+  attackTimer: 0, specialTimer: 0,
+  dashCooldown: 1.0, dashTimer: 0, dashing: false, dashDuration: 0.18, dashTimeLeft: 0,
+  invuln: 0,
+  damageMult: 1, speedMult: 1, lifesteal: 0, explosiveHits: false,
+  critChance: 0, critMult: 1.8, thorns: 0,
+  activeAbilities: [], abilityTimers: {},
+};
+
+function placePlayerInRoom() {
+  const p = findSpawnPoint(currentRoom.grid);
+  player.x = p.x; player.y = p.y;
+  if (difficulty === 'easy') player.hp = player.maxHp;
+}
+
+function tryDash() {
+  if (gameState !== 'playing') return;
+  if (player.dashTimer > 0 || player.dashing) return;
+  let dx = 0, dy = 0;
+  if (keys['KeyW']||keys['ArrowUp']) dy -= 1;
+  if (keys['KeyS']||keys['ArrowDown']) dy += 1;
+  if (keys['KeyA']||keys['ArrowLeft']) dx -= 1;
+  if (keys['KeyD']||keys['ArrowRight']) dx += 1;
+  if (dx === 0 && dy === 0) { dx = Math.cos(player.angle); dy = Math.sin(player.angle); }
+  const len = Math.hypot(dx, dy) || 1;
+  player.dashDirX = dx/len; player.dashDirY = dy/len;
+  player.dashing = true;
+  player.dashTimeLeft = player.dashDuration;
+  player.dashTimer = player.dashCooldown;
+  player.invuln = Math.max(player.invuln, player.dashDuration + 0.05);
+  dashRearAttack();
+}
+
+/* ---- balafre arrière au moment où le dash démarre : un arc de cercle
+   part dans la direction opposée au dash et fauche ce qui est derrière ---- */
+function dashRearAttack() {
+  if (!currentRoom || selectedWeapon === null) return;
+  const weapon = WEAPONS[selectedWeapon];
+  if (weapon.type !== 'melee') return;
+  const rearAngle = Math.atan2(player.dashDirY, player.dashDirX) + Math.PI;
+  const savedAngle = player.angle;
+  player.angle = rearAngle;
+  meleeHitCheck(weapon.range * 0.85, 1.6, weapon.damage * 0.6);
+  player.angle = savedAngle;
+  slashEffects.push({ type:'wedge', x:player.x, y:player.y, angle:rearAngle, arc:1.6, range:weapon.range*0.85, color:'#ffffff', life:0.1, maxLife:0.1 });
+  slashEffects.push({ type:'wedge', x:player.x, y:player.y, angle:rearAngle, arc:1.75, range:weapon.range*0.7, color:weapon.color, life:0.2, maxLife:0.2 });
+  spawnParticles(player.x + Math.cos(rearAngle)*30, player.y + Math.sin(rearAngle)*30, weapon.color, 8, 180, 0.3, 3);
+}
+
+function meleeHitCheck(range, arc, baseDamage) {
+  const hits = [];
+  for (const e of currentRoom.enemies) {
+    if (e.dead) continue;
+    const dx = e.x - player.x, dy = e.y - player.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > range + e.radius) continue;
+    const angToE = Math.atan2(dy, dx);
+    let diff = Math.abs(angToE - player.angle);
+    if (diff > Math.PI) diff = Math.PI*2 - diff;
+    if (diff <= arc/2) {
+      const isCrit = Math.random() < player.critChance;
+      const dmg = baseDamage * player.damageMult * (isCrit ? player.critMult : 1);
+      damageEnemy(e, dmg, isCrit);
+      spawnImpactBurst(e.x - Math.cos(angToE)*e.radius*0.6, e.y - Math.sin(angToE)*e.radius*0.6, angToE, isCrit ? '#ffd76b' : '#ffffff');
+      hits.push(e);
+    }
+  }
+  return hits;
+}
+
+function weaponPrimaryVFX(weapon) {
+  const ox = player.x, oy = player.y;
+  switch (weapon.key) {
+    case 'sword':
+      // triple afterimage pour donner une sensation de coup rapide et large
+      slashEffects.push({ type:'wedge', x:ox, y:oy, angle:player.angle, arc:weapon.arc, range:weapon.range, color:'#ffffff', life:0.09, maxLife:0.09 });
+      slashEffects.push({ type:'wedge', x:ox, y:oy, angle:player.angle, arc:weapon.arc*1.05, range:weapon.range*1.05, color:'#dfe8f0', life:0.18, maxLife:0.18 });
+      slashEffects.push({ type:'wedge', x:ox, y:oy, angle:player.angle, arc:weapon.arc*1.15, range:weapon.range*0.9, color:'#8fb8ff', life:0.26, maxLife:0.26 });
+      spawnParticles(ox + Math.cos(player.angle)*weapon.range*0.6, oy + Math.sin(player.angle)*weapon.range*0.6, weapon.color, 16, 260, 0.35, 3.5);
+      triggerShake(2.5, 0.08);
+      break;
+    case 'spear':
+      slashEffects.push({ type:'line', x:ox, y:oy, angle:player.angle, range:weapon.range, color:'#ffffff', life:0.08, maxLife:0.08, width:14 });
+      slashEffects.push({ type:'line', x:ox, y:oy, angle:player.angle, range:weapon.range, color:'#ffe9a8', life:0.2, maxLife:0.2, width:10 });
+      spawnParticles(ox + Math.cos(player.angle)*weapon.range, oy + Math.sin(player.angle)*weapon.range, weapon.color, 14, 240, 0.3, 3.5);
+      triggerShake(2, 0.07);
+      break;
+    case 'daggers':
+      slashEffects.push({ type:'wedge', x:ox, y:oy, angle:player.angle-0.35, arc:weapon.arc*0.6, range:weapon.range, color:'#e0b8ff', life:0.11, maxLife:0.11 });
+      slashEffects.push({ type:'wedge', x:ox, y:oy, angle:player.angle+0.35, arc:weapon.arc*0.6, range:weapon.range, color:'#e0b8ff', life:0.11, maxLife:0.11 });
+      slashEffects.push({ type:'wedge', x:ox, y:oy, angle:player.angle, arc:weapon.arc*0.4, range:weapon.range*0.7, color:'#ffffff', life:0.08, maxLife:0.08 });
+      spawnParticles(ox, oy, weapon.color, 10, 220, 0.25, 2.5);
+      break;
+    case 'hammer':
+      slashEffects.push({ type:'ring', x:ox, y:oy, range:weapon.range, color:'#ff8a4a', life:0.28, maxLife:0.28 });
+      slashEffects.push({ type:'ring', x:ox, y:oy, range:weapon.range*0.6, color:'#ffffff', life:0.16, maxLife:0.16 });
+      spawnParticles(ox + Math.cos(player.angle)*40, oy + Math.sin(player.angle)*40, '#8a5a3a', 28, 260, 0.5, 5.5, 260);
+      triggerShake(6, 0.16);
+      break;
+  }
+}
+
+/* ---- swing animé : la lame/arme balaie visiblement l'arc au fil du temps
+   au lieu d'un simple flash statique, pour lire clairement la direction et
+   la portée du coup (façon Hades) ---- */
+function startWeaponSwing(weapon) {
+  const duration = weapon.key === 'hammer' ? 0.26 : Math.min(weapon.cooldown * 0.75, 0.22);
+  const style = weapon.key === 'spear' ? 'thrust' : (weapon.key === 'hammer' ? 'smash' : 'slash');
+  player.swing = {
+    style, color: weapon.color,
+    startAngle: player.angle - weapon.arc/2,
+    endAngle: player.angle + weapon.arc/2,
+    range: weapon.range,
+    elapsed: 0, duration
+  };
+}
+function updateWeaponSwing(dt) {
+  if (!player.swing) return;
+  player.swing.elapsed += dt;
+  if (player.swing.elapsed >= player.swing.duration) player.swing = null;
+}
+function drawWeaponSwing() {
+  const s = player.swing;
+  if (!s) return;
+  const t = Math.min(s.elapsed / s.duration, 1);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  if (s.style === 'thrust') {
+    // la lance s'étire vers l'avant puis se rétracte
+    const ext = t < 0.4 ? (t/0.4) : 1 - (t-0.4)/0.6*0.3;
+    const len = s.range * ext;
+    const midAngle = (s.startAngle + s.endAngle) / 2;
+    ctx.strokeStyle = s.color;
+    ctx.globalAlpha = 1 - t*0.3;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(player.x + Math.cos(midAngle)*len, player.y + Math.sin(midAngle)*len);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(player.x + Math.cos(midAngle)*len, player.y + Math.sin(midAngle)*len, 4, 0, Math.PI*2);
+    ctx.fill();
+  } else if (s.style === 'smash') {
+    // le marteau retombe d'en haut : une masse qui suit un arc court et lourd
+    const angle = s.startAngle + (s.endAngle - s.startAngle) * Math.pow(t, 0.6);
+    const headX = player.x + Math.cos(angle)*s.range*0.85;
+    const headY = player.y + Math.sin(angle)*s.range*0.85;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 8;
+    ctx.globalAlpha = 1 - t*0.4;
+    ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(headX, headY); ctx.stroke();
+    ctx.fillStyle = s.color;
+    ctx.beginPath(); ctx.arc(headX, headY, 11, 0, Math.PI*2); ctx.fill();
+  } else {
+    // slash classique : la lame balaie l'arc en un mouvement fluide, avec une traînée
+    const angle = s.startAngle + (s.endAngle - s.startAngle) * t;
+    const trailSteps = 5;
+    for (let i = 0; i < trailSteps; i++) {
+      const tt = Math.max(t - i*0.045, 0);
+      const a = s.startAngle + (s.endAngle - s.startAngle) * tt;
+      const alpha = (1 - i/trailSteps) * (1 - t*0.3);
+      ctx.strokeStyle = i === 0 ? '#ffffff' : s.color;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = i === 0 ? 5 : 3;
+      ctx.beginPath();
+      ctx.moveTo(player.x + Math.cos(a)*s.range*0.25, player.y + Math.sin(a)*s.range*0.25);
+      ctx.lineTo(player.x + Math.cos(a)*s.range, player.y + Math.sin(a)*s.range);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function tryAttack() {
+  if (gameState !== 'playing' || !currentRoom) return;
+  if (player.attackTimer > 0) return;
+  const weapon = WEAPONS[selectedWeapon];
+  player.attackTimer = weapon.cooldown;
+  { const wm = worldMouse(); player.angle = Math.atan2(wm.y - player.y, wm.x - player.x); }
+
+  if (weapon.type === 'melee') {
+    const hits = meleeHitCheck(weapon.range, weapon.arc, weapon.damage);
+    weaponPrimaryVFX(weapon);
+    startWeaponSwing(weapon);
+    if (hits.length && weapon.hitstop > 0) { triggerHitStop(weapon.hitstop); triggerHitZoom(hits.length > 1 ? 0.03 : 0.015); }
+  } else {
+    const isCrit = Math.random() < player.critChance;
+    currentRoom.projectiles.push({
+      x: player.x, y: player.y,
+      startX: player.x, startY: player.y,
+      vx: Math.cos(player.angle) * weapon.projectileSpeed,
+      vy: Math.sin(player.angle) * weapon.projectileSpeed,
+      damage: weapon.damage * player.damageMult * (isCrit ? player.critMult : 1),
+      isCrit, color: weapon.color, friendly: true, radius: 6, trail: true
+    });
+    spawnParticles(player.x, player.y, weapon.color, 8, 140, 0.22, 3);
+  }
+}
+
+/* ---- capacités spéciales d'arme (clic droit) ---- */
+function trySpecialAttack() {
+  if (gameState !== 'playing' || !currentRoom) return;
+  if (player.specialTimer > 0) return;
+  const weapon = WEAPONS[selectedWeapon];
+  player.specialTimer = weapon.special.cooldown;
+  { const wm = worldMouse(); player.angle = Math.atan2(wm.y - player.y, wm.x - player.x); }
+
+  if (weapon.key === 'sword') dashSlash(weapon);
+  else if (weapon.key === 'spear') impale(weapon);
+  else if (weapon.key === 'bow') multiShot(weapon);
+  else if (weapon.key === 'daggers') flurry(weapon);
+  else if (weapon.key === 'hammer') slamSpecial(weapon);
+}
+
+function dashSlash(weapon) {
+  const hits = meleeHitCheck(weapon.range*1.6, weapon.arc*1.3, weapon.damage*1.8);
+  slashEffects.push({ type:'wedge', x:player.x, y:player.y, angle:player.angle, arc:weapon.arc*1.3, range:weapon.range*1.6, color:'#ffffff', life:0.22, maxLife:0.22 });
+  const nx = player.x + Math.cos(player.angle)*110, ny = player.y + Math.sin(player.angle)*110;
+  if (isWalkable(nx, ny, player.radius)) { player.x = nx; player.y = ny; }
+  player.invuln = Math.max(player.invuln, 0.2);
+  triggerShake(5, 0.18); triggerHitStop(0.05); triggerHitZoom(0.05); triggerFlash('#8fb8ff', 0.15);
+}
+
+function impale(weapon) {
+  const range = 260, halfWidth = 30;
+  for (const e of currentRoom.enemies) {
+    if (e.dead) continue;
+    const dx = e.x - player.x, dy = e.y - player.y;
+    const proj = dx*Math.cos(player.angle) + dy*Math.sin(player.angle);
+    const perp = Math.abs(-dx*Math.sin(player.angle) + dy*Math.cos(player.angle));
+    if (proj > 0 && proj < range && perp < halfWidth + e.radius) {
+      const isCrit = Math.random() < player.critChance;
+      damageEnemy(e, weapon.damage*1.8*player.damageMult*(isCrit?player.critMult:1), isCrit);
+      spawnImpactBurst(e.x, e.y, player.angle, isCrit ? '#ffd76b' : '#ffe9a8');
+    }
+  }
+  slashEffects.push({ type:'line', x:player.x, y:player.y, angle:player.angle, range, color:'#ffd76b', life:0.22, maxLife:0.22, width:18 });
+  triggerShake(4, 0.15); triggerHitStop(0.04); triggerHitZoom(0.04);
+}
+
+function multiShot(weapon) {
+  [-0.28, 0, 0.28].forEach(off => {
+    const a = player.angle + off;
+    const isCrit = Math.random() < player.critChance;
+    currentRoom.projectiles.push({
+      x: player.x, y: player.y, vx: Math.cos(a)*weapon.projectileSpeed, vy: Math.sin(a)*weapon.projectileSpeed,
+      damage: weapon.damage*0.9*player.damageMult*(isCrit?player.critMult:1), isCrit,
+      color: weapon.color, friendly: true, radius: 6, trail: true
+    });
+  });
+  spawnParticles(player.x, player.y, weapon.color, 14, 200, 0.3, 3.5);
+  triggerShake(1.5, 0.08);
+}
+
+function flurry(weapon) {
+  for (const e of currentRoom.enemies) {
+    if (e.dead) continue;
+    const d = Math.hypot(e.x-player.x, e.y-player.y);
+    if (d < 95 + e.radius) {
+      const isCrit = Math.random() < player.critChance;
+      damageEnemy(e, weapon.damage*2.2*player.damageMult*(isCrit?player.critMult:1), isCrit);
+      spawnImpactBurst(e.x, e.y, Math.atan2(e.y-player.y, e.x-player.x), isCrit ? '#ffd76b' : '#c98bff');
+    }
+  }
+  slashEffects.push({ type:'ring', x:player.x, y:player.y, range:95, color:'#c98bff', life:0.28, maxLife:0.28 });
+  slashEffects.push({ type:'ring', x:player.x, y:player.y, range:70, color:'#ffffff', life:0.18, maxLife:0.18 });
+  triggerShake(4, 0.18); triggerHitStop(0.04); triggerHitZoom(0.04);
+}
+
+function slamSpecial(weapon) {
+  const radius = 150;
+  for (const e of currentRoom.enemies) {
+    if (e.dead) continue;
+    const dx = e.x-player.x, dy = e.y-player.y;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d < radius + e.radius) {
+      const isCrit = Math.random() < player.critChance;
+      damageEnemy(e, weapon.damage*2.5*player.damageMult*(isCrit?player.critMult:1), isCrit);
+      spawnImpactBurst(e.x, e.y, Math.atan2(dy, dx), '#ff5a2e');
+      const push = (radius - d) + 40;
+      const nex = e.x + dx/d*push*0.4, ney = e.y + dy/d*push*0.4;
+      if (isWalkable(nex, ney, e.radius)) { e.x = nex; e.y = ney; }
+    }
+  }
+  slashEffects.push({ type:'ring', x:player.x, y:player.y, range:radius, color:'#ff5a2e', life:0.42, maxLife:0.42 });
+  spawnParticles(player.x, player.y, '#8a5a3a', 40, 300, 0.55, 6, 200);
+  triggerShake(11, 0.35); triggerHitStop(0.1); triggerHitZoom(0.08); triggerFlash('#ff8a4a', 0.35);
+}
+
+/* ---- capacités actives débloquées après un boss (Q / E) ---- */
+const ACTIVE_ABILITY_DEFS = {
+  nova: {
+    name: "Nova d'énergie", cooldown: 8,
+    activate() {
+      for (const e of currentRoom.enemies) {
+        if (e.dead) continue;
+        if (Math.hypot(e.x-player.x, e.y-player.y) < 150) { damageEnemy(e, 45*player.damageMult); spawnImpactBurst(e.x, e.y, Math.atan2(e.y-player.y, e.x-player.x), '#7fd0ff'); }
+      }
+      slashEffects.push({ type:'ring', x:player.x, y:player.y, range:150, color:'#7fd0ff', life:0.4, maxLife:0.4 });
+      spawnParticles(player.x, player.y, '#7fd0ff', 40, 260, 0.5, 4);
+      triggerShake(6, 0.25); triggerHitStop(0.06); triggerFlash('#7fd0ff', 0.25); triggerHitZoom(0.05);
+    }
+  },
+  blink: {
+    name: 'Frappe éclair', cooldown: 7,
+    activate() {
+      const wm = worldMouse();
+      const dx = wm.x-player.x, dy = wm.y-player.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const travel = Math.min(dist, 250);
+      const dirX = dx/dist, dirY = dy/dist;
+      for (let i = 1; i <= 8; i++) {
+        const px = player.x + dirX*travel*(i/8), py = player.y + dirY*travel*(i/8);
+        spawnParticles(px, py, '#ffd76b', 4, 60, 0.25, 3);
+        for (const e of currentRoom.enemies) {
+          if (e.dead) continue;
+          if (Math.hypot(e.x-px, e.y-py) < e.radius + 18) damageEnemy(e, 30*player.damageMult);
+        }
+      }
+      const nx = player.x + dirX*travel, ny = player.y + dirY*travel;
+      if (isWalkable(nx, ny, player.radius)) { player.x = nx; player.y = ny; }
+      player.invuln = Math.max(player.invuln, 0.2);
+      triggerShake(4, 0.15); triggerHitStop(0.04);
+    }
+  },
+  heal_zone: {
+    name: 'Zone de soin', cooldown: 14,
+    activate() {
+      currentRoom.zones.push({
+        type: 'heal', x: player.x, y: player.y, radius: 75,
+        life: 5, maxLife: 5, tickTimer: 0, color: '#6bffa0'
+      });
+      slashEffects.push({ type:'ring', x:player.x, y:player.y, range:75, color:'#6bffa0', life:0.35, maxLife:0.35 });
+      spawnParticles(player.x, player.y, '#6bffa0', 24, 90, 0.6, 3);
+    }
+  },
+  poison_zone: {
+    name: 'Zone de poison', cooldown: 11,
+    activate() {
+      const wm = worldMouse();
+      const dx = wm.x - player.x, dy = wm.y - player.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const travel = Math.min(dist, 320);
+      const zx = player.x + dx/dist*travel, zy = player.y + dy/dist*travel;
+      currentRoom.zones.push({
+        type: 'poison', x: zx, y: zy, radius: 85,
+        life: 6, maxLife: 6, tickTimer: 0, color: '#8fd13a'
+      });
+      slashEffects.push({ type:'ring', x:zx, y:zy, range:85, color:'#8fd13a', life:0.35, maxLife:0.35 });
+      spawnParticles(zx, zy, '#8fd13a', 24, 90, 0.6, 3);
+    }
+  }
+};
+
+function activateAbility(slot) {
+  if (gameState !== 'playing') return;
+  const key = player.activeAbilities[slot];
+  if (!key) return;
+  if ((player.abilityTimers[key]||0) > 0) return;
+  ACTIVE_ABILITY_DEFS[key].activate();
+  player.abilityTimers[key] = ACTIVE_ABILITY_DEFS[key].cooldown;
+}
+
+function damageEnemy(e, amount, isCrit=false) {
+  e.hp -= amount;
+  spawnDamageText(e.x, e.y, amount, isCrit);
+  spawnParticles(e.x, e.y, isCrit ? '#ffd76b' : '#ffdf6b', isCrit?18:10, isCrit?220:160, isCrit?0.4:0.3, isCrit?4:3);
+  if (isCrit) { triggerHitStop(0.04); triggerFlash('#ffd76b', 0.18); triggerHitZoom(0.03); }
+  if (player.lifesteal > 0) player.hp = Math.min(player.maxHp, player.hp + amount*player.lifesteal);
+  if (player.explosiveHits) spawnParticles(e.x, e.y, '#7fd0ff', 8, 220, 0.35, 3);
+  if (e.hp <= 0 && !e.dead) {
+    e.dead = true;
+    spawnParticles(e.x, e.y, e.color, e.isBoss ? 60 : 22, e.isBoss ? 320 : 200, e.isBoss ? 1.0 : 0.5, e.isBoss ? 6 : 4, e.isBoss ? 160 : 90);
+    spawnKillBurst(e.x, e.y, e.isBoss ? '#c98bff' : '#ffdf6b', e.isBoss);
+    if (e.isBoss) { triggerShake(10, 0.4); triggerHitStop(0.12); triggerFlash('#ffffff', 0.4); triggerHitZoom(0.08); }
+    else triggerHitStop(0.02);
+  }
+}
+
+function damagePlayer(amount, sourceEnemy) {
+  if (player.invuln > 0) return;
+  player.hp -= amount;
+  player.invuln = 0.6;
+  spawnParticles(player.x, player.y, '#ff4d4d', 12, 160, 0.35, 3);
+  triggerShake(2, 0.08); triggerVignette(0.5);
+  if (player.thorns > 0 && sourceEnemy && !sourceEnemy.dead) damageEnemy(sourceEnemy, amount*player.thorns);
+  if (player.hp <= 0) triggerGameOver();
+}
+
+/* ============================================================
+   ENNEMIS
+   ============================================================ */
+function createEnemy(type, x, y, scale=1, zone=null) {
+  const spd = zoneSpeedMult();
+  const base = { x, y, radius: 16, hp: 30, maxHp: 30, speed: 90, color: '#c65b5b', dead: false, type, shootTimer: Math.random()*1.5 };
+  if (type === 'grunt') {
+    // chasseur basique, rapide mais fragile : la menace de base d'une salle
+    Object.assign(base, { hp: 30*scale, maxHp: 30*scale, speed: 95*spd, color: '#c65b5b' });
+  } else if (type === 'archer') {
+    // tireur qui garde ses distances, dégâts modestes mais aucun risque au contact
+    Object.assign(base, { hp: 20*scale, maxHp: 20*scale, speed: 80*spd, color: '#5b9dc6', radius: 14 });
+  } else if (type === 'brute') {
+    // bruiser lent qui charge : alterne marche lourde et ruées violentes télégraphiées
+    Object.assign(base, {
+      hp: 70*scale, maxHp: 70*scale, speed: 90*spd, color: '#a8622e', radius: 22,
+      chargeState: 'idle', chargeTimer: 0.1 + Math.random(), windup: 0,
+    });
+  } else if (type === 'mage') {
+    // caster qui se téléporte pour fuir le corps-à-corps et télégraphie une
+    // zone d'impact au sol au lieu d'un simple projectile en ligne droite
+    Object.assign(base, {
+      hp: 22*scale, maxHp: 22*scale, speed: 66*spd, color: '#b57ed0', radius: 14,
+      teleportCd: 0, casting: false, castTimer: 0.6 + Math.random()*0.8,
+    });
+  } else if (type === 'boss') {
+    Object.assign(base, {
+      hp: 320*scale, maxHp: 320*scale, speed: 88*spd, color: (zone && zone.bossColor) || '#9d3ad1', radius: 34,
+      isBoss: true, phase: 'chase', phaseTimer: 1.2, telegraph: 0, telegraphMax: 0.7,
+      spriteKey: zone ? zone.bossKey : 'boss', bossKind: (zone && zone.bossKind) || 'guardian',
+    });
+  }
+  return base;
+}
+
+function updateEnemies(dt) {
+  for (const e of currentRoom.enemies) {
+    if (e.dead) continue;
+    const dx = player.x - e.x, dy = player.y - e.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const dirX = dx/dist, dirY = dy/dist;
+
+    if (e.type === 'grunt') {
+      // chasseur basique : fonce droit sur le joueur, contourne les obstacles
+      moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+      if (dist < e.radius + player.radius + 4) {
+        e.contactTimer = (e.contactTimer||0) - dt;
+        if (e.contactTimer <= 0) { damagePlayer(8 * zoneDmgMult(), e); e.contactTimer = 0.6; }
+      }
+    } else if (e.type === 'brute') {
+      updateBrute(e, dt, dirX, dirY, dist);
+    } else if (e.type === 'archer') {
+      // tireur qui garde ses distances et tire en ligne droite
+      if (dist < 180) moveTowardsAvoiding(e, -dirX, -dirY, e.speed, dt);
+      else if (dist > 260) moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+      e.shootTimer -= dt;
+      if (e.shootTimer <= 0) {
+        e.shootTimer = 1.7;
+        currentRoom.projectiles.push({ x: e.x, y: e.y, vx: dirX*260, vy: dirY*260, damage: 10 * zoneDmgMult(), color:'#5b9dc6', friendly:false, radius:6 });
+      }
+    } else if (e.type === 'mage') {
+      updateMage(e, dt, dirX, dirY, dist);
+    } else if (e.type === 'boss') updateBoss(e, dt, dirX, dirY, dist);
+  }
+}
+
+/* ---- Brute : bruiser lent qui alterne marche pesante et charges violentes
+   télégraphiées (windup visible avant la ruée), bien différent du grunt qui
+   ne fait que foncer en continu ---- */
+function updateBrute(e, dt, dirX, dirY, dist) {
+  if (e.chargeState === 'winding') {
+    e.windup -= dt;
+    if (e.windup <= 0) {
+      e.chargeState = 'charging';
+      e.chargeDirX = dirX; e.chargeDirY = dirY;
+      e.chargeTime = 0.45;
+      triggerShake(1, 0.05);
+    }
+  } else if (e.chargeState === 'charging') {
+    moveTowardsAvoiding(e, e.chargeDirX, e.chargeDirY, e.speed*4.2, dt);
+    e.chargeTime -= dt;
+    const d = Math.hypot(player.x-e.x, player.y-e.y);
+    if (d < e.radius + player.radius + 6) {
+      e.contactTimer = (e.contactTimer||0) - dt;
+      if (e.contactTimer <= 0) { damagePlayer(22 * zoneDmgMult(), e); e.contactTimer = 1.0; triggerShake(3, 0.12); }
+    }
+    if (e.chargeTime <= 0) { e.chargeState = 'recover'; e.chargeTimer = 1.0; }
+  } else if (e.chargeState === 'recover') {
+    e.chargeTimer -= dt;
+    if (e.chargeTimer <= 0) e.chargeState = 'idle';
+  } else {
+    e.chargeTimer -= dt;
+    moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+    if (dist < e.radius + player.radius + 4) {
+      e.contactTimer = (e.contactTimer||0) - dt;
+      if (e.contactTimer <= 0) { damagePlayer(14 * zoneDmgMult(), e); e.contactTimer = 0.85; triggerShake(1.5, 0.08); }
+    }
+    if (dist > 140 && dist < 420 && e.chargeTimer <= 0) {
+      e.chargeState = 'winding'; e.windup = 0.8; e.chargeTimer = 2.4;
+    }
+  }
+}
+
+/* ---- Mage : caster qui se téléporte pour fuir le corps-à-corps et
+   télégraphie une zone d'impact au sol (au lieu d'un simple projectile en
+   ligne droite comme l'archer), pour une mécanique clairement distincte ---- */
+function updateMage(e, dt, dirX, dirY, dist) {
+  e.teleportCd -= dt;
+  if (dist < 150 && e.teleportCd <= 0) {
+    for (let tries = 0; tries < 12; tries++) {
+      const angle = Math.random()*Math.PI*2;
+      const rdist = 200 + Math.random()*120;
+      const tx = e.x + Math.cos(angle)*rdist, ty = e.y + Math.sin(angle)*rdist;
+      if (isWalkable(tx, ty, e.radius)) {
+        spawnParticles(e.x, e.y, '#b57ed0', 14, 160, 0.35, 3);
+        e.x = tx; e.y = ty;
+        spawnParticles(e.x, e.y, '#b57ed0', 14, 160, 0.35, 3);
+        e.teleportCd = 3.5;
+        break;
+      }
+    }
+  } else if (dist < 260) {
+    moveTowardsAvoiding(e, -dirX, -dirY, e.speed, dt);
+  } else if (dist > 380) {
+    moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+  }
+
+  if (!e.casting) {
+    e.castTimer -= dt;
+    if (e.castTimer <= 0) {
+      e.casting = true;
+      e.castProgress = 0;
+      e.castDuration = 1.0;
+      e.castX = player.x; e.castY = player.y;
+    }
+  } else {
+    e.castProgress += dt;
+    // le point d'impact suit un peu le joueur pour rester menaçant, sans le
+    // pister parfaitement (il reste possible d'esquiver en bougeant)
+    e.castX += (player.x - e.castX) * Math.min(dt*1.2, 1);
+    e.castY += (player.y - e.castY) * Math.min(dt*1.2, 1);
+    if (e.castProgress >= e.castDuration) {
+      e.casting = false;
+      e.castTimer = 2.6;
+      const d = Math.hypot(player.x-e.castX, player.y-e.castY);
+      if (d < 70) damagePlayer(18 * zoneDmgMult());
+      spawnParticles(e.castX, e.castY, '#b57ed0', 26, 220, 0.45, 4);
+      slashEffects.push({ type:'ring', x:e.castX, y:e.castY, range:70, color:'#b57ed0', life:0.3, maxLife:0.3 });
+      triggerShake(2, 0.1);
+    }
+  }
+}
+
+/* ============================================================
+   BOSS — chaque zone a un boss avec un design et des attaques uniques.
+   Le dispatcher choisit la bonne IA selon zone.bossKind ; toutes les
+   variantes utilisent moveTowardsAvoiding pour contourner intelligemment
+   piliers/murs/trous au lieu de rester bloquées ou de foncer dedans.
+   ============================================================ */
+function updateBoss(e, dt, dirX, dirY, dist) {
+  switch (e.bossKind) {
+    case 'colossus':  updateBossColossus(e, dt, dirX, dirY, dist); break;
+    case 'flamelord': updateBossFlamelord(e, dt, dirX, dirY, dist); break;
+    case 'icequeen':  updateBossIcequeen(e, dt, dirX, dirY, dist); break;
+    case 'celestial': updateBossCelestial(e, dt, dirX, dirY, dist); break;
+    default:          updateBossGuardian(e, dt, dirX, dirY, dist);
+  }
+}
+
+/* --- Zone 0 : Gardien de Pierre — bruiser pur au corps-à-corps.
+   Alterne charges frontales télégraphiées et un ground-slam de zone. --- */
+function updateBossGuardian(e, dt, dirX, dirY, dist) {
+  e.phaseTimer -= dt;
+  if (e.phase === 'chase') {
+    moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+    if (dist < e.radius + player.radius + 6) {
+      e.contactTimer = (e.contactTimer||0) - dt;
+      if (e.contactTimer <= 0) { damagePlayer(14 * zoneDmgMult(), e); e.contactTimer = 0.7; }
+    }
+    if (e.phaseTimer <= 0) {
+      e.phase = Math.random() < 0.5 ? 'chargeWindup' : 'slamWindup';
+      e.phaseTimer = 0.7; e.telegraph = 0; e.telegraphMax = 0.7;
+    }
+  } else if (e.phase === 'chargeWindup') {
+    e.telegraph += dt;
+    if (e.phaseTimer <= 0) {
+      e.phase = 'charging';
+      e.chargeDirX = dirX; e.chargeDirY = dirY;
+      e.phaseTimer = 0.5;
+    }
+  } else if (e.phase === 'charging') {
+    moveTowardsAvoiding(e, e.chargeDirX, e.chargeDirY, e.speed*3.6, dt);
+    const d = Math.hypot(player.x-e.x, player.y-e.y);
+    if (d < e.radius + player.radius + 6) {
+      e.contactTimer = (e.contactTimer||0) - dt;
+      if (e.contactTimer <= 0) { damagePlayer(26 * zoneDmgMult(), e); e.contactTimer = 1.0; triggerShake(4, 0.15); }
+    }
+    if (e.phaseTimer <= 0) { e.phase = 'chase'; e.phaseTimer = 2.0; }
+  } else if (e.phase === 'slamWindup') {
+    e.telegraph += dt;
+    if (e.phaseTimer <= 0) {
+      const d = Math.hypot(player.x-e.x, player.y-e.y);
+      if (d < 150) damagePlayer(24 * zoneDmgMult());
+      spawnParticles(e.x, e.y, '#9d3ad1', 40, 300, 0.6, 5, 140);
+      spawnKillBurst(e.x, e.y, '#9d3ad1', false);
+      triggerShake(8, 0.28); triggerHitStop(0.06); triggerFlash('#9d3ad1', 0.22);
+      e.phase = 'chase'; e.phaseTimer = 2.2;
+    }
+  }
+}
+
+/* --- Zone 1 : Colosse des Marais — lent et relentless, laisse une traînée
+   de poison au sol en marchant et crache parfois un glob de poison à
+   distance quand le joueur kite. --- */
+function updateBossColossus(e, dt, dirX, dirY, dist) {
+  e.phaseTimer -= dt;
+  e.poisonTrailTimer = (e.poisonTrailTimer||0) - dt;
+  if (e.phase === 'chase') {
+    moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+    if (e.poisonTrailTimer <= 0) {
+      currentRoom.zones.push({ type:'poison', hostile:true, x:e.x, y:e.y, radius:60, life:3, maxLife:3, tickTimer:0, color:'#4fae5a' });
+      e.poisonTrailTimer = 1.1;
+    }
+    if (dist < e.radius + player.radius + 6) {
+      e.contactTimer = (e.contactTimer||0) - dt;
+      if (e.contactTimer <= 0) { damagePlayer(16 * zoneDmgMult(), e); e.contactTimer = 0.8; }
+    }
+    if (e.phaseTimer <= 0) {
+      e.phase = dist > 260 ? 'lob' : 'slamWindup';
+      e.phaseTimer = e.phase === 'slamWindup' ? 0.9 : 0.1;
+      e.telegraph = 0; e.telegraphMax = 0.9;
+    }
+  } else if (e.phase === 'lob') {
+    if (e.phaseTimer <= 0) {
+      const a = Math.atan2(player.y-e.y, player.x-e.x);
+      currentRoom.projectiles.push({ x:e.x, y:e.y, vx:Math.cos(a)*150, vy:Math.sin(a)*150, damage:14 * zoneDmgMult(), color:'#4fae5a', friendly:false, radius:9 });
+      e.phase = 'chase'; e.phaseTimer = 2.0;
+    }
+  } else if (e.phase === 'slamWindup') {
+    e.telegraph += dt;
+    if (e.phaseTimer <= 0) {
+      const d = Math.hypot(player.x-e.x, player.y-e.y);
+      if (d < 150) damagePlayer(22 * zoneDmgMult());
+      currentRoom.zones.push({ type:'poison', hostile:true, x:e.x, y:e.y, radius:150, life:4, maxLife:4, tickTimer:0, color:'#4fae5a' });
+      spawnParticles(e.x, e.y, '#4fae5a', 40, 280, 0.6, 5, 140);
+      spawnKillBurst(e.x, e.y, '#4fae5a', false);
+      triggerShake(8, 0.28); triggerHitStop(0.06); triggerFlash('#4fae5a', 0.2);
+      e.phase = 'chase'; e.phaseTimer = 2.2;
+    }
+  }
+}
+
+/* --- Zone 2 : Seigneur des Flammes — mobile et évasif, se téléporte,
+   tire des salves radiales, et fonce en laissant un sillage de feu au sol. --- */
+function updateBossFlamelord(e, dt, dirX, dirY, dist) {
+  e.phaseTimer -= dt;
+  if (e.phase === 'chase') {
+    if (dist < 200) moveTowardsAvoiding(e, -dirX, -dirY, e.speed, dt);
+    else if (dist > 340) moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+    if (e.phaseTimer <= 0) {
+      const r = Math.random();
+      e.phase = r < 0.4 ? 'burstWindup' : (r < 0.75 ? 'teleport' : 'dashWindup');
+      e.phaseTimer = e.phase === 'teleport' ? 0.1 : 0.6;
+      e.telegraph = 0; e.telegraphMax = 0.6;
+    }
+  } else if (e.phase === 'teleport') {
+    for (let tries=0; tries<12; tries++) {
+      const angle = Math.random()*Math.PI*2;
+      const rdist = 220 + Math.random()*140;
+      const tx = e.x + Math.cos(angle)*rdist, ty = e.y + Math.sin(angle)*rdist;
+      if (isWalkable(tx, ty, e.radius)) {
+        spawnParticles(e.x, e.y, '#e0384a', 24, 220, 0.4, 4);
+        e.x = tx; e.y = ty;
+        spawnParticles(e.x, e.y, '#ff8a4a', 24, 220, 0.4, 4);
+        break;
+      }
+    }
+    e.phase = 'chase'; e.phaseTimer = 1.6;
+  } else if (e.phase === 'burstWindup') {
+    e.telegraph += dt;
+    if (e.phaseTimer <= 0) {
+      for (let i=0;i<12;i++) {
+        const a = (Math.PI*2/12)*i;
+        currentRoom.projectiles.push({ x:e.x, y:e.y, vx:Math.cos(a)*230, vy:Math.sin(a)*230, damage:13 * zoneDmgMult(), color:'#ff8a4a', friendly:false, radius:7 });
+      }
+      triggerShake(5, 0.2); triggerFlash('#ff8a4a', 0.2);
+      e.phase = 'chase'; e.phaseTimer = 1.8;
+    }
+  } else if (e.phase === 'dashWindup') {
+    e.telegraph += dt;
+    if (e.phaseTimer <= 0) {
+      e.phase = 'dashing';
+      e.chargeDirX = dirX; e.chargeDirY = dirY;
+      e.phaseTimer = 0.4;
+    }
+  } else if (e.phase === 'dashing') {
+    moveTowardsAvoiding(e, e.chargeDirX, e.chargeDirY, e.speed*3.2, dt);
+    currentRoom.zones.push({ type:'fire', hostile:true, x:e.x, y:e.y, radius:50, life:2, maxLife:2, tickTimer:0, color:'#ff5a2e' });
+    const d = Math.hypot(player.x-e.x, player.y-e.y);
+    if (d < e.radius + player.radius + 6) {
+      e.contactTimer = (e.contactTimer||0) - dt;
+      if (e.contactTimer <= 0) { damagePlayer(20 * zoneDmgMult(), e); e.contactTimer = 0.8; }
+    }
+    if (e.phaseTimer <= 0) { e.phase = 'chase'; e.phaseTimer = 2.0; }
+  }
+}
+
+/* --- Zone 3 : Reine des Glaces — kite en permanence comme l'archer/mage,
+   tire des salves d'éclats en éventail, et pose des zones de givre qui
+   ralentissent le joueur tant qu'il y reste. --- */
+function updateBossIcequeen(e, dt, dirX, dirY, dist) {
+  e.phaseTimer -= dt;
+  if (dist < 260) moveTowardsAvoiding(e, -dirX, -dirY, e.speed, dt);
+  else if (dist > 420) moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+  if (e.phase === 'chase') {
+    if (e.phaseTimer <= 0) {
+      e.phase = Math.random() < 0.5 ? 'spread' : 'iceZoneWindup';
+      e.phaseTimer = e.phase === 'iceZoneWindup' ? 0.6 : 0.1;
+      e.telegraph = 0; e.telegraphMax = 0.6;
+    }
+  } else if (e.phase === 'spread') {
+    if (e.phaseTimer <= 0) {
+      const baseA = Math.atan2(player.y-e.y, player.x-e.x);
+      [-0.5,-0.25,0,0.25,0.5].forEach(off => {
+        const a = baseA+off;
+        currentRoom.projectiles.push({ x:e.x, y:e.y, vx:Math.cos(a)*260, vy:Math.sin(a)*260, damage:11 * zoneDmgMult(), color:'#6bc8ff', friendly:false, radius:6 });
+      });
+      e.phase = 'chase'; e.phaseTimer = 1.6;
+    }
+  } else if (e.phase === 'iceZoneWindup') {
+    e.telegraph += dt;
+    if (e.phaseTimer <= 0) {
+      currentRoom.zones.push({ type:'ice', x:player.x, y:player.y, radius:100, life:4, maxLife:4, tickTimer:0, color:'#6bc8ff' });
+      spawnParticles(player.x, player.y, '#6bc8ff', 20, 160, 0.4, 3);
+      e.phase = 'chase'; e.phaseTimer = 2.2;
+    }
+  }
+}
+
+/* --- Zone 4 : Avatar Céleste — boss final qui combine les 3 registres :
+   invoque des sbires, tire un rayon de ligne dévastateur, et une salve
+   radiale ; le seul boss capable de rappeler des renforts. --- */
+function updateBossCelestial(e, dt, dirX, dirY, dist) {
+  e.phaseTimer -= dt;
+  if (e.phase === 'chase') {
+    moveTowardsAvoiding(e, dirX, dirY, e.speed, dt);
+    if (dist < e.radius + player.radius + 6) {
+      e.contactTimer = (e.contactTimer||0) - dt;
+      if (e.contactTimer <= 0) { damagePlayer(16 * zoneDmgMult(), e); e.contactTimer = 0.7; }
+    }
+    if (e.phaseTimer <= 0) {
+      const r = Math.random();
+      e.phase = r < 0.34 ? 'beamWindup' : (r < 0.67 ? 'summon' : 'burst');
+      e.phaseTimer = e.phase === 'beamWindup' ? 0.9 : 0.1;
+      e.telegraph = 0; e.telegraphMax = 0.9;
+      if (e.phase === 'beamWindup') e.beamAngle = Math.atan2(player.y-e.y, player.x-e.x);
+    }
+  } else if (e.phase === 'beamWindup') {
+    e.telegraph += dt;
+    e.beamAngle += (Math.atan2(player.y-e.y, player.x-e.x) - e.beamAngle) * Math.min(dt*2, 1);
+    if (e.phaseTimer <= 0) {
+      const range = 500, halfWidth = 34;
+      const dx = player.x - e.x, dy = player.y - e.y;
+      const proj = dx*Math.cos(e.beamAngle) + dy*Math.sin(e.beamAngle);
+      const perp = Math.abs(-dx*Math.sin(e.beamAngle) + dy*Math.cos(e.beamAngle));
+      if (proj > 0 && proj < range && perp < halfWidth) damagePlayer(30 * zoneDmgMult());
+      slashEffects.push({ type:'line', x:e.x, y:e.y, angle:e.beamAngle, range, color:'#ffd76b', life:0.25, maxLife:0.25, width:34 });
+      triggerShake(9, 0.3); triggerHitStop(0.08); triggerFlash('#ffd76b', 0.3);
+      e.phase = 'chase'; e.phaseTimer = 2.2;
+    }
+  } else if (e.phase === 'summon') {
+    if (e.phaseTimer <= 0) {
+      const scale = difficultyScale()*0.7;
+      for (let i=0;i<2;i++) {
+        const p = randomFloorTile(currentRoom.grid);
+        const type = Math.random()<0.5 ? 'grunt' : 'mage';
+        currentRoom.enemies.push(createEnemy(type, p.x, p.y, scale));
+      }
+      spawnParticles(e.x, e.y, '#ffd76b', 20, 160, 0.4, 3);
+      e.phase = 'chase'; e.phaseTimer = 2.6;
+    }
+  } else if (e.phase === 'burst') {
+    if (e.phaseTimer <= 0) {
+      for (let i=0;i<10;i++) {
+        const a = (Math.PI*2/10)*i;
+        currentRoom.projectiles.push({ x:e.x, y:e.y, vx:Math.cos(a)*200, vy:Math.sin(a)*200, damage:14 * zoneDmgMult(), color:'#ffd76b', friendly:false, radius:7 });
+      }
+      e.phase = 'chase'; e.phaseTimer = 1.8;
+    }
+  }
+}
+
+function drawEnemies() {
+  for (const e of currentRoom.enemies) {
+    if (e.dead) continue;
+    if (e.type === 'brute' && e.chargeState === 'winding') {
+      const t = 1 - Math.max(e.windup,0)/0.55;
+      const a = Math.atan2(player.y-e.y, player.x-e.x);
+      ctx.strokeStyle = 'rgba(255,120,60,'+(0.3+t*0.5)+')';
+      ctx.lineWidth = 3 + t*2;
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.lineTo(e.x + Math.cos(a)*120, e.y + Math.sin(a)*120);
+      ctx.stroke();
+    }
+    if (e.type === 'mage' && e.casting) {
+      const t = Math.min(e.castProgress/e.castDuration, 1);
+      ctx.strokeStyle = 'rgba(181,126,208,'+(0.25+t*0.55)+')';
+      ctx.lineWidth = 2 + t*2;
+      ctx.beginPath(); ctx.arc(e.castX, e.castY, 70, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = 'rgba(181,126,208,'+(0.08+t*0.12)+')';
+      ctx.beginPath(); ctx.arc(e.castX, e.castY, 70*t, 0, Math.PI*2); ctx.fill();
+    }
+    if (e.type === 'boss' && e.phase && /windup/i.test(e.phase)) {
+      const maxT = e.telegraphMax || 0.7;
+      const t = Math.min((e.telegraph||0) / maxT, 1);
+      if (e.phase === 'beamWindup') {
+        ctx.strokeStyle = 'rgba(255,215,120,'+(0.2+t*0.6)+')';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y);
+        ctx.lineTo(e.x + Math.cos(e.beamAngle)*500, e.y + Math.sin(e.beamAngle)*500);
+        ctx.stroke();
+      } else if (e.phase === 'chargeWindup' || e.phase === 'dashWindup') {
+        const a = Math.atan2(player.y-e.y, player.x-e.x);
+        ctx.strokeStyle = 'rgba(255,180,80,'+(0.3+t*0.5)+')';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(e.x, e.y);
+        ctx.lineTo(e.x+Math.cos(a)*160, e.y+Math.sin(a)*160);
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = 'rgba(224,56,74,'+(0.25+t*0.5)+')';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(e.x, e.y, 140*t, 0, Math.PI*2); ctx.stroke();
+      }
+    }
+    const spriteKey = e.type === 'boss'
+      ? (IMG[e.spriteKey] && IMG[e.spriteKey].complete && IMG[e.spriteKey].naturalWidth ? e.spriteKey : 'boss')
+      : (IMG[e.type+'_z'+zoneIndex] && IMG[e.type+'_z'+zoneIndex].complete && IMG[e.type+'_z'+zoneIndex].naturalWidth ? e.type+'_z'+zoneIndex : e.type);
+    drawSprite(IMG[spriteKey], e.x, e.y, e.radius*2.2, 0, () => {
+      ctx.fillStyle = e.color;
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+    });
+    const w = e.radius*2;
+    ctx.fillStyle = '#1c1d24';
+    ctx.fillRect(e.x - w/2, e.y - e.radius - 12, w, 5);
+    ctx.fillStyle = e.isBoss ? e.color : '#e0384a';
+    ctx.fillRect(e.x - w/2, e.y - e.radius - 12, w * Math.max(e.hp/e.maxHp,0), 5);
+  }
+}
+
+/* ============================================================
+   PROJECTILES
+   ============================================================ */
+function updateProjectiles(dt) {
+  const list = currentRoom.projectiles;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i];
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    if (p.friendly && p.trail) spawnParticles(p.x, p.y, p.color, 1, 20, 0.15, 2);
+    if (!isFloorAt(p.x, p.y)) { list.splice(i,1); continue; }
+
+    if (p.friendly) {
+  for (const e of currentRoom.enemies) {
+    if (e.dead) continue;
+    if (Math.hypot(e.x-p.x, e.y-p.y) < e.radius + p.radius) {
+      
+      
+      const distTraveled = Math.hypot(p.x - p.startX, p.y - p.startY);
+      const effectiveRange = 150; 
+      
+      let finalDamage = p.damage;
+      if (distTraveled > effectiveRange) {
+          finalDamage = 0; 
+      }
+      
+
+      damageEnemy(e, finalDamage, p.isCrit||false);
+      
+      
+      if (finalDamage > 0) {
+          spawnImpactBurst(p.x, p.y, Math.atan2(p.vy, p.vx), p.isCrit ? '#ffd76b' : p.color);
+      } else {
+          
+          spawnParticles(p.x, p.y, '#555', 3, 50, 0.2, 2);
+      }
+      
+      list.splice(i,1);
+      break;
+    }
+  }
+    } else {
+      if (Math.hypot(player.x-p.x, player.y-p.y) < player.radius + p.radius) {
+        damagePlayer(p.damage);
+        list.splice(i,1);
+      }
+    }
+  }
+}
+function drawProjectiles() {
+  for (const p of currentRoom.projectiles) {
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+/* ============================================================
+   ZONES AU SOL (soin / poison) — posées par les capacités actives
+   ============================================================ */
+function updateZones(dt) {
+  const zones = currentRoom.zones;
+  player.iceSlowActive = false;
+  for (let i = zones.length - 1; i >= 0; i--) {
+    const z = zones[i];
+    z.life -= dt;
+    z.tickTimer -= dt;
+    if (z.type === 'ice' && Math.hypot(player.x-z.x, player.y-z.y) < z.radius) {
+      player.iceSlowActive = true;
+    }
+    if (z.tickTimer <= 0) {
+      z.tickTimer = 0.5;
+      if (z.type === 'heal') {
+        if (Math.hypot(player.x-z.x, player.y-z.y) < z.radius) {
+          player.hp = Math.min(player.maxHp, player.hp + 6);
+          spawnParticles(player.x, player.y, z.color, 4, 60, 0.4, 2.5);
+        }
+      } else if (z.type === 'poison' && z.hostile) {
+        // traînée/flaque de poison posée par un boss : blesse le joueur
+        if (Math.hypot(player.x-z.x, player.y-z.y) < z.radius) {
+          damagePlayer(5 * zoneDmgMult());
+          spawnParticles(player.x, player.y, z.color, 3, 60, 0.3, 2);
+        }
+      } else if (z.type === 'poison') {
+        // zone de poison posée par le joueur (capacité active) : blesse les ennemis
+        for (const e of currentRoom.enemies) {
+          if (e.dead) continue;
+          if (Math.hypot(e.x-z.x, e.y-z.y) < z.radius) {
+            damageEnemy(e, 8 * player.damageMult);
+            spawnParticles(e.x, e.y, z.color, 3, 60, 0.3, 2);
+          }
+        }
+      } else if (z.type === 'fire') {
+        // sillage de feu laissé par le Seigneur des Flammes
+        if (Math.hypot(player.x-z.x, player.y-z.y) < z.radius) {
+          damagePlayer(7 * zoneDmgMult());
+          spawnParticles(player.x, player.y, z.color, 3, 80, 0.3, 2);
+        }
+      }
+    }
+    if (z.life <= 0) zones.splice(i, 1);
+  }
+}
+function drawZones() {
+  ctx.save();
+  for (const z of currentRoom.zones) {
+    const pulse = 0.85 + 0.15*Math.sin(torchTime*5 + z.x);
+    const grad = ctx.createRadialGradient(z.x, z.y, 4, z.x, z.y, z.radius);
+    grad.addColorStop(0, z.color + '55');
+    grad.addColorStop(1, z.color + '00');
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = pulse * Math.min(z.life / z.maxLife + 0.3, 1);
+    ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = z.color;
+    ctx.globalAlpha = 0.6 * pulse;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/* ============================================================
+   DÉCOR — rendu tuile par tuile (sol / mur / trou) + lumières + objets
+   de décor, tout dépendant de la zone active (currentZone()).
+   ============================================================ */
+// patterns mis en cache par zone (évite de reconstruire le pattern à
+// chaque frame et permet de changer de sol/mur en changeant de zone)
+const patternCache = {};
+
+// redimensionne une image source à TILE x TILE avant de créer le pattern,
+// sinon le pattern se répète à la taille NATIVE de l'image (souvent bien
+// plus grande que 48px), ce qui donne des tuiles énormes et désalignées
+// par rapport à la grille logique du jeu.
+function makeTileCanvas(img) {
+  const off = document.createElement('canvas');
+  off.width = TILE; off.height = TILE;
+  const octx = off.getContext('2d');
+  octx.imageSmoothingEnabled = true;
+  octx.drawImage(img, 0, 0, TILE, TILE);
+  return off;
+}
+
+function ensurePatterns() {
+  const zone = currentZone();
+  let cache = patternCache[zoneIndex];
+  if (!cache) cache = patternCache[zoneIndex] = { floor:null, wall:null };
+  if (!cache.floor) {
+    const img = (IMG[zone.floorKey] && IMG[zone.floorKey].complete && IMG[zone.floorKey].naturalWidth) ? IMG[zone.floorKey]
+      : (IMG.tile_floor && IMG.tile_floor.complete && IMG.tile_floor.naturalWidth) ? IMG.tile_floor : null;
+    if (img) cache.floor = ctx.createPattern(makeTileCanvas(img), 'repeat');
+  }
+  if (!cache.wall) {
+    const img = (IMG[zone.wallKey] && IMG[zone.wallKey].complete && IMG[zone.wallKey].naturalWidth) ? IMG[zone.wallKey]
+      : (IMG.tile_wall && IMG.tile_wall.complete && IMG.tile_wall.naturalWidth) ? IMG.tile_wall : null;
+    if (img) cache.wall = ctx.createPattern(makeTileCanvas(img), 'repeat');
+  }
+  return cache;
+}
+
+let torchTime = 0;
+// torches réparties sur les bords de la grande salle (coins + mi-murs) ;
+// leur couleur est définie par zone.lightColor
+const torches = [
+  { x: 90, y: 90 }, { x: WORLD_W-90, y: 90 },
+  { x: 90, y: WORLD_H-90 }, { x: WORLD_W-90, y: WORLD_H-90 },
+  { x: WORLD_W/2, y: 70 }, { x: WORLD_W/2, y: WORLD_H-70 },
+  { x: 70, y: WORLD_H/2 }, { x: WORLD_W-70, y: WORLD_H/2 },
+];
+
+function drawRoomBackground() {
+  if (!currentRoom || !currentRoom.grid) return;
+  const zone = currentZone();
+  const { floor: floorPattern, wall: wallPattern } = ensurePatterns();
+  const grid = currentRoom.grid;
+
+  // ne dessine que les tuiles visibles à l'écran (la salle est plus grande que la caméra)
+  const c0 = Math.max(0, Math.floor((camera.x - W/2) / TILE) - 1);
+  const c1 = Math.min(GC-1, Math.ceil((camera.x + W/2) / TILE) + 1);
+  const r0 = Math.max(0, Math.floor((camera.y - H/2) / TILE) - 1);
+  const r1 = Math.min(GR-1, Math.ceil((camera.y + H/2) / TILE) + 1);
+
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const tile = grid[r][c];
+      const px = c*TILE, py = r*TILE;
+      if (tile === '#') {
+        ctx.fillStyle = wallPattern || '#1c1d24';
+        ctx.fillRect(px, py, TILE, TILE);
+        if (!wallPattern) { ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.strokeRect(px, py, TILE, TILE); }
+      } else if (tile === '.') {
+        ctx.fillStyle = floorPattern || '#232530';
+        ctx.fillRect(px, py, TILE, TILE);
+        if (!floorPattern) { ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.strokeRect(px, py, TILE, TILE); }
+      } else {
+        const grad = ctx.createRadialGradient(px+TILE/2, py+TILE/2, 2, px+TILE/2, py+TILE/2, TILE*0.8);
+        grad.addColorStop(0, '#050507'); grad.addColorStop(1, '#0d0e14');
+        ctx.fillStyle = grad;
+        ctx.fillRect(px, py, TILE, TILE);
+      }
+    }
+  }
+
+  // liseré lumineux au bord des trous (rebord de gouffre), teinté par la zone
+  ctx.strokeStyle = 'rgba('+zone.lightColor+',0.3)'; ctx.lineWidth = 2;
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      if (grid[r][c] !== '.') continue;
+      const px = c*TILE, py = r*TILE;
+      if (grid[r-1] && grid[r-1][c] === '~') { ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+TILE,py); ctx.stroke(); }
+      if (grid[r+1] && grid[r+1][c] === '~') { ctx.beginPath(); ctx.moveTo(px,py+TILE); ctx.lineTo(px+TILE,py+TILE); ctx.stroke(); }
+      if (grid[r][c-1] === '~') { ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px,py+TILE); ctx.stroke(); }
+      if (grid[r][c+1] === '~') { ctx.beginPath(); ctx.moveTo(px+TILE,py); ctx.lineTo(px+TILE,py+TILE); ctx.stroke(); }
+    }
+  }
+
+  drawDecor(zone);
+
+  for (const t of torches) {
+    const flick = 0.75 + 0.25*Math.sin(torchTime*4 + t.x);
+    const grad = ctx.createRadialGradient(t.x, t.y, 4, t.x, t.y, 130);
+    grad.addColorStop(0, 'rgba('+zone.lightColor+','+(0.35*flick)+')');
+    grad.addColorStop(1, 'rgba('+zone.lightColor+',0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(t.x, t.y, 130, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgb('+zone.lightColor+')';
+    ctx.beginPath(); ctx.arc(t.x, t.y, 5, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// dessine les objets de décor de la salle (purement visuels, sous les
+// entités). Sans asset fourni pour la clé, dessine un petit repère discret
+// pour que l'emplacement reste visible pendant que tu prépares tes assets.
+function drawDecor() {
+  if (!currentRoom || !currentRoom.decor) return;
+  for (const d of currentRoom.decor) {
+    drawSprite(IMG[d.key], d.x, d.y, TILE * 0.9 * d.scale, 0, () => {
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.beginPath(); ctx.ellipse(d.x, d.y, 16*d.scale, 8*d.scale, 0, 0, Math.PI*2); ctx.fill();
+    });
+  }
+}
+
+/* ============================================================
+   JOUEUR - update / draw
+   ============================================================ */
+function updatePlayer(dt) {
+  if (player.attackTimer > 0) player.attackTimer -= dt;
+  if (player.specialTimer > 0) player.specialTimer -= dt;
+  if (player.dashTimer > 0) player.dashTimer -= dt;
+  if (player.invuln > 0) player.invuln -= dt;
+  updateWeaponSwing(dt);
+  for (const k of player.activeAbilities) {
+    if ((player.abilityTimers[k]||0) > 0) player.abilityTimers[k] -= dt;
+  }
+
+  if (player.dashing) {
+    player.dashTimeLeft -= dt;
+    moveEntity(player, player.dashDirX * 620 * dt, player.dashDirY * 620 * dt);
+    spawnParticles(player.x, player.y, '#8fb8ff', 2, 40, 0.25, 3);
+    if (player.dashTimeLeft <= 0) player.dashing = false;
+  } else {
+    let dx=0, dy=0;
+    if (keys['KeyW']||keys['ArrowUp']) dy -= 1;
+    if (keys['KeyS']||keys['ArrowDown']) dy += 1;
+    if (keys['KeyA']||keys['ArrowLeft']) dx -= 1;
+    if (keys['KeyD']||keys['ArrowRight']) dx += 1;
+    const len = Math.hypot(dx,dy);
+    if (len > 0) {
+      dx/=len; dy/=len;
+      const iceMult = player.iceSlowActive ? 0.55 : 1;
+      moveEntity(player, dx * player.speed * player.speedMult * iceMult * dt, dy * player.speed * player.speedMult * iceMult * dt);
+    }
+  }
+  { const wm = worldMouse(); player.angle = Math.atan2(wm.y - player.y, wm.x - player.x); }
+
+  if (mouse.down) tryAttack();
+}
+
+function drawPlayer() {
+  ctx.globalAlpha = (player.invuln > 0 && Math.floor(player.invuln*20)%2===0) ? 0.4 : 1;
+  const weapon = WEAPONS[selectedWeapon];
+  // pendant le swing d'une arme de mêlée, la lame est déjà rendue par
+  // l'effet animé (drawWeaponSwing) : on affiche le joueur mains nues
+  // pour ne pas superposer deux versions de l'arme. L'arc garde toujours
+  // son sprite armé, y compris en tirant, car il n'a pas de swing.
+  const isMeleeAttacking = weapon.type === 'melee' && !!player.swing;
+  const spriteKey = isMeleeAttacking ? 'player_unarmed' : ('player_' + weapon.key);
+  drawSprite(IMG[spriteKey], player.x, player.y, player.radius*3.2, player.angle, () => {
+    ctx.fillStyle = '#e8e6df';
+    ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2); ctx.fill();
+    if (!isMeleeAttacking) {
+      ctx.strokeStyle = weapon.color; ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y);
+      ctx.lineTo(player.x + Math.cos(player.angle)*24, player.y + Math.sin(player.angle)*24);
+      ctx.stroke();
+    }
+  });
+  ctx.globalAlpha = 1;
+  drawWeaponSwing();
+}
+
+/* ============================================================
+   GESTION DES SALLES / GENERATION
+   ============================================================ */
+let gameState = 'weaponSelect';
+let currentRoom = null;
+let roomCount = 0;
+const ROOMS_BEFORE_BOSS = 5;
+
+function difficultyScale() { return 1 + roomCount * 0.08 + zoneIndex * 0.4; }
+
+function buildRoom(spec) {
+  const zone = currentZone();
+  const grid = generateRoomLayout();
+  const room = { enemies: [], projectiles: [], zones: [], doors: [], decor: [], cleared: false, isBoss: spec.isBoss, grid };
+  if (spec.isBoss) {
+    room.enemies.push(createEnemy('boss', ROOM_CENTER_X, ROOM_CENTER_Y - 120, difficultyScale(), zone));
+  } else {
+    const scale = difficultyScale();
+    for (let i = 0; i < spec.grunts; i++) {
+      const p = randomFloorTile(grid);
+      const type = zone.meleeTypes[Math.floor(Math.random()*zone.meleeTypes.length)];
+      room.enemies.push(createEnemy(type, p.x, p.y, scale));
+    }
+    for (let i = 0; i < spec.archers; i++) {
+      const p = randomFloorTile(grid);
+      const type = zone.rangedTypes[Math.floor(Math.random()*zone.rangedTypes.length)];
+      room.enemies.push(createEnemy(type, p.x, p.y, scale));
+    }
+    room.doors = buildDoors(grid);
+  }
+  room.decor = scatterDecor(grid, zone);
+  return room;
+}
+
+// dispose 3 à 7 objets de décor purement visuels (n'affectent pas la marche)
+// à des positions au sol libres, en piochant dans les clés de la zone
+function scatterDecor(grid, zone) {
+  const decor = [];
+  if (!zone.decorKeys || !zone.decorKeys.length) return decor;
+  const count = 3 + Math.floor(Math.random()*5);
+  for (let i = 0; i < count; i++) {
+    const p = randomFloorTile(grid);
+    const key = zone.decorKeys[Math.floor(Math.random()*zone.decorKeys.length)];
+    decor.push({ x: p.x, y: p.y, key, scale: 0.85 + Math.random()*0.4 });
+  }
+  return decor;
+}
+
+function randomRoomSpec() {
+  const grunts = 2 + Math.floor(Math.random()*3);
+  const archers = Math.random() < 0.6 ? 1 + Math.floor(Math.random()*2) : 0;
+  return { grunts, archers, isBoss:false, label: archers>0?'Salle mixte':'Salle de combat' };
+}
+
+/* ---- portes physiques : scellées pendant le combat, s'ouvrent une fois la
+   salle nettoyée, et mènent à la salle suivante en marchant dedans ---- */
+const DOOR_SLOTS = [
+  { side:'right',  gx: GC-1,           gy: Math.floor(GR/2) },
+  { side:'bottom', gx: Math.floor(GC/2), gy: GR-1 },
+  { side:'left',   gx: 0,               gy: Math.floor(GR/2) },
+  { side:'top',    gx: Math.floor(GC/2), gy: 0 },
+];
+function buildDoors(grid) {
+  const leadsToBoss = (roomCount + 1) >= ROOMS_BEFORE_BOSS;
+  const slots = [...DOOR_SLOTS].sort(() => Math.random()-0.5);
+  const count = leadsToBoss ? 1 : 2;
+  const doors = [];
+  for (let i = 0; i < count; i++) {
+    const slot = slots[i];
+    const spec = leadsToBoss ? { isBoss:true } : randomRoomSpec();
+    const door = { ...slot, spec, opened:false, color: leadsToBoss ? '#9d3ad1' : '#c65b5b' };
+    carveDoorPath(grid, slot);
+    doors.push(door);
+  }
+  return doors;
+}
+function carveDoorPath(grid, slot) {
+  // garantit un couloir rectiligne praticable entre la porte et l'intérieur,
+  // indépendamment des trous/piliers générés aléatoirement
+  let dx = 0, dy = 0;
+  if (slot.side === 'right') dx = -1;
+  else if (slot.side === 'left') dx = 1;
+  else if (slot.side === 'top') dy = 1;
+  else dy = -1;
+  for (let i = 1; i <= 5; i++) {
+    const c = slot.gx + dx*i, r = slot.gy + dy*i;
+    if (grid[r] && grid[r][c] !== undefined) grid[r][c] = '.';
+  }
+}
+function openDoors() {
+  if (!currentRoom) return;
+  for (const d of currentRoom.doors) {
+    d.opened = true;
+    currentRoom.grid[d.gy][d.gx] = '.';
+    spawnParticles(d.gx*TILE+TILE/2, d.gy*TILE+TILE/2, d.color, 24, 110, 0.6, 3);
+  }
+}
+function checkDoorTrigger() {
+  if (!currentRoom || !currentRoom.cleared || currentRoom.isBoss) return;
+  for (const d of currentRoom.doors) {
+    if (!d.opened) continue;
+    const wx = d.gx*TILE+TILE/2, wy = d.gy*TILE+TILE/2;
+    if (Math.hypot(player.x-wx, player.y-wy) < 30) { enterRoom(d.spec); return; }
+  }
+}
+function drawDoors() {
+  if (!currentRoom || !currentRoom.doors) return;
+  for (const d of currentRoom.doors) {
+    const wx = d.gx*TILE+TILE/2, wy = d.gy*TILE+TILE/2;
+    if (d.opened) {
+      const pulse = 0.7 + 0.3*Math.sin(torchTime*4 + wx);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const grad = ctx.createRadialGradient(wx, wy, 4, wx, wy, 64);
+      grad.addColorStop(0, d.color + 'aa');
+      grad.addColorStop(1, d.color + '00');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = pulse;
+      ctx.beginPath(); ctx.arc(wx, wy, 64, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#2a1418';
+      ctx.fillRect(wx-TILE/2, wy-TILE/2, TILE, TILE);
+      ctx.strokeStyle = 'rgba(200,80,80,0.5)'; ctx.lineWidth = 2;
+      ctx.strokeRect(wx-TILE/2+4, wy-TILE/2+4, TILE-8, TILE-8);
+    }
+    // pastille indiquant la destination (couleur boss vs salle de combat)
+    ctx.fillStyle = d.color;
+    ctx.beginPath();
+    const iconOffsetY = d.side === 'top' ? 22 : d.side === 'bottom' ? -22 : -TILE*0.75;
+    ctx.arc(wx, wy + iconOffsetY, 8, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.globalAlpha = 0.3; ctx.lineWidth = 1.5; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+}
+
+function enterRoom(spec) {
+  currentRoom = buildRoom(spec);
+  placePlayerInRoom();
+  gameState = 'playing';
+  updateHUDStatic();
+}
+
+function checkRoomCleared() {
+  if (!currentRoom || currentRoom.cleared) return;
+  if (currentRoom.enemies.every(e => e.dead)) {
+    currentRoom.cleared = true;
+    if (currentRoom.isBoss) setTimeout(showUpgradeScreen, 900);
+    else { roomCount++; setTimeout(openDoors, 500); }
+  }
+}
+
+/* ============================================================
+   AMÉLIORATIONS après boss (passives + actives)
+   ============================================================ */
+const PASSIVE_UPGRADES = [
+  { name:'Lame ardente', desc:'+25% dégâts avec ton arme.', apply:()=>{ player.damageMult *= 1.25; } },
+  { name:'Second souffle', desc:'+30 PV max, soin complet.', apply:()=>{ player.maxHp += 30; player.hp = player.maxHp; } },
+  { name:'Jambes agiles', desc:'+15% vitesse de déplacement.', apply:()=>{ player.speedMult *= 1.15; } },
+  { name:'Sang vampirique', desc:'Récupère 15% des dégâts infligés en PV.', apply:()=>{ player.lifesteal += 0.15; } },
+  { name:'Coup critique', desc:'+15% de chance de coup critique (x1.8 dégâts).', apply:()=>{ player.critChance = Math.min(0.75, player.critChance + 0.15); } },
+  { name:'Épines', desc:"30% des dégâts de contact subis sont renvoyés à l'attaquant.", apply:()=>{ player.thorns += 0.3; } },
+  { name:'Impact explosif', desc:'Chaque coup libère une gerbe de particules énergétiques supplémentaire.', apply:()=>{ player.explosiveHits = true; } },
+  { name:'Ruée renforcée', desc:'Cooldown du dash réduit de 30%.', apply:()=>{ player.dashCooldown *= 0.7; } },
+  { name:'Réflexes de combat', desc:"Cooldown de la capacité spéciale d'arme réduit de 25%.", apply:()=>{ WEAPONS[selectedWeapon].special.cooldown *= 0.75; } },
+];
+
+const ACTIVE_UPGRADES = [
+  { id:'nova', name:"Nova d'énergie", desc:'Explosion radiale autour de toi (touche Q ou E).', apply:()=>{ if (player.activeAbilities.length<2 && !player.activeAbilities.includes('nova')) { player.activeAbilities.push('nova'); player.abilityTimers.nova = 0; } } },
+  { id:'blink', name:'Frappe éclair', desc:'Téléportation offensive vers le curseur (touche Q ou E).', apply:()=>{ if (player.activeAbilities.length<2 && !player.activeAbilities.includes('blink')) { player.activeAbilities.push('blink'); player.abilityTimers.blink = 0; } } },
+  { id:'heal_zone', name:'Zone de soin', desc:'Pose une zone au sol qui te soigne tant que tu y restes (touche Q ou E).', apply:()=>{ if (player.activeAbilities.length<2 && !player.activeAbilities.includes('heal_zone')) { player.activeAbilities.push('heal_zone'); player.abilityTimers.heal_zone = 0; } } },
+  { id:'poison_zone', name:'Zone de poison', desc:'Pose une flaque toxique qui inflige des dégâts continus aux ennemis (touche Q ou E).', apply:()=>{ if (player.activeAbilities.length<2 && !player.activeAbilities.includes('poison_zone')) { player.activeAbilities.push('poison_zone'); player.abilityTimers.poison_zone = 0; } } },
+];
+
+function showUpgradeScreen() {
+  gameState = 'upgrade';
+  const div = document.getElementById('upgradeCards');
+  div.innerHTML = '';
+  let pool = [...PASSIVE_UPGRADES];
+  ACTIVE_UPGRADES.forEach(a => { if (player.activeAbilities.length<2 && !player.activeAbilities.includes(a.id)) pool.push(a); });
+  const shuffled = pool.sort(()=>Math.random()-0.5).slice(0,3);
+  shuffled.forEach(u => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const tag = u.id ? '<p class="specialLine">Capacité active</p>' : '<p class="specialLine">Amélioration passive</p>';
+    card.innerHTML = `<div class="icon" style="background:#3a3d4a;border-radius:50%;"></div><h3>${u.name}</h3>${tag}<p>${u.desc}</p>`;
+    card.onclick = () => {
+      u.apply();
+      document.getElementById('upgradeScreen').classList.add('hidden');
+      zoneIndex++;
+      roomCount = 0;
+      if (zoneIndex >= ZONES.length) {
+        showVictoryScreen();
+      } else {
+        enterRoom(randomRoomSpec());
+      }
+    };
+    div.appendChild(card);
+  });
+  document.getElementById('upgradeScreen').classList.remove('hidden');
+}
+
+function showVictoryScreen() {
+  gameState = 'victory';
+  document.getElementById('victoryStats').textContent =
+    `Tu as vaincu les gardiens des 5 zones et terminé le donjon !`;
+  document.getElementById('victory').classList.remove('hidden');
+}
+
+/* ============================================================
+   GAME OVER
+   ============================================================ */
+function triggerGameOver() {
+  gameState = 'gameover';
+  const zone = currentZone();
+  document.getElementById('gameOverStats').textContent = `Tu es tombé dans "${zone.name}" (zone ${zoneIndex+1}/${ZONES.length}), après ${roomCount} salle(s).`;
+  document.getElementById('gameOver').classList.remove('hidden');
+}
+
+/* ============================================================
+   UI
+   ============================================================ */
+function updateHUDStatic() {
+  const zone = currentZone();
+  document.getElementById('roomInfo').textContent = currentRoom && currentRoom.isBoss
+    ? `Zone ${zoneIndex+1}/${ZONES.length} — ${zone.bossName}`
+    : `Zone ${zoneIndex+1}/${ZONES.length} — ${zone.name} — Salle ${roomCount + 1}`;
+}
+function updateHUD() {
+  document.getElementById('hpBarFill').style.width = Math.max(player.hp,0)/player.maxHp*100 + '%';
+  document.getElementById('dashInfo').textContent = player.dashTimer > 0 ? `DASH: ${player.dashTimer.toFixed(1)}s` : 'DASH: prêt (Espace)';
+  if (selectedWeapon !== null) {
+    document.getElementById('specialInfo').textContent = player.specialTimer > 0
+      ? `Spécial (clic droit): ${player.specialTimer.toFixed(1)}s`
+      : 'Spécial (clic droit): prêt';
+  }
+  const abilText = player.activeAbilities.map((k, i) => {
+    const def = ACTIVE_ABILITY_DEFS[k];
+    const t = player.abilityTimers[k] || 0;
+    const keyLabel = i === 0 ? 'Q' : 'E';
+    return `${keyLabel}: ${def.name} ${t > 0 ? t.toFixed(1)+'s' : 'prêt'}`;
+  }).join('   ·   ');
+  document.getElementById('abilitiesInfo').textContent = abilText;
+
+  const roomInfoEl = document.getElementById('roomInfo');
+  if (currentRoom && !currentRoom.isBoss) {
+    const zone = currentZone();
+    roomInfoEl.textContent = currentRoom.cleared
+      ? 'Salle nettoyée — traverse une porte'
+      : `Zone ${zoneIndex+1}/${ZONES.length} — ${zone.name} — Salle ${roomCount + 1}`;
+  }
+}
+
+/* ============================================================
+   ECRAN CHOIX D'ARME
+   ============================================================ */
+function drawWeaponIcon(canvasEl, weapon) {
+  const ictx = canvasEl.getContext('2d');
+  const cw = canvasEl.width, ch = canvasEl.height;
+  ictx.clearRect(0, 0, cw, ch);
+  ictx.fillStyle = '#20222b';
+  ictx.fillRect(0, 0, cw, ch);
+  const cx = cw / 2, cy = ch / 2;
+  const img = IMG['player_' + weapon.key];
+  if (img && img.complete && img.naturalWidth > 0) {
+    const size = cw * 0.88;
+    ictx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+  } else {
+    // aperçu de secours : silhouette du joueur (corps + ligne d'arme colorée),
+    // face vers la droite, comme la convention des sprites 'player_<arme>'
+    ictx.fillStyle = '#e8e6df';
+    ictx.beginPath(); ictx.arc(cx, cy, cw * 0.22, 0, Math.PI * 2); ictx.fill();
+    ictx.strokeStyle = weapon.color; ictx.lineWidth = 4;
+    ictx.beginPath();
+    ictx.moveTo(cx, cy);
+    ictx.lineTo(cx + cw * 0.34, cy);
+    ictx.stroke();
+    ictx.fillStyle = weapon.color;
+    ictx.beginPath(); ictx.arc(cx + cw * 0.34, cy, 3.5, 0, Math.PI * 2); ictx.fill();
+  }
+}
+function buildWeaponCards() {
+  const div = document.getElementById('weaponCards');
+  WEAPONS.forEach((w, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<canvas class="icon" width="54" height="54"></canvas>
+      <h3>${w.name}</h3>
+      <p class="specialLine">Spécial : ${w.special.name}</p>
+      <p>${w.desc}</p>`;
+    card.onclick = () => {
+      selectedWeapon = i;
+      document.getElementById('weaponSelect').classList.add('hidden');
+      enterRoom(randomRoomSpec());
+    };
+    div.appendChild(card);
+    const iconCanvas = card.querySelector('canvas.icon');
+    drawWeaponIcon(iconCanvas, w);
+    // si le sprite armé se charge après coup, on redessine l'aperçu
+    const img = IMG['player_' + w.key];
+    if (img) img.addEventListener('load', () => drawWeaponIcon(iconCanvas, w));
+  });
+}
+buildWeaponCards();
+
+/* ============================================================
+   BOUCLE PRINCIPALE (avec hit-stop : rawDt fait vivre les VFX/écran,
+   dt fait avancer la simulation et peut être figé brièvement)
+   ============================================================ */
+let lastTime = performance.now();
+function gameLoop(now) {
+  const rawDt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  torchTime += rawDt;
+  ensurePatterns();
+
+  let dt = rawDt;
+  if (hitStopTimer > 0) {
+    hitStopTimer -= rawDt;
+    dt = 0;
+    if (hitStopTimer < 0) hitStopTimer = 0;
+  }
+
+  ctx.save();
+  // fond plein écran en espace écran (avant translation caméra)
+  ctx.fillStyle = currentRoom ? currentZone().bgColor : '#0a0a0d';
+  ctx.fillRect(0, 0, W, H);
+
+  let ox = 0, oy = 0;
+  if (shakeTime > 0) {
+    ox = (Math.random()-0.5) * shakeMag;
+    oy = (Math.random()-0.5) * shakeMag;
+    shakeTime -= rawDt;
+    if (shakeTime <= 0) { shakeTime = 0; shakeMag = 0; }
+  }
+  // léger zoom-avant sur les gros coups (punch-in), centré sur le joueur
+  if (hitZoom > 0) {
+    const z = 1 + hitZoom;
+    ctx.translate(W/2, H/2);
+    ctx.scale(z, z);
+    ctx.translate(-W/2, -H/2);
+    hitZoom -= rawDt * 4;
+    if (hitZoom < 0) hitZoom = 0;
+  }
+  if (currentRoom) updateCamera(dt || rawDt);
+  ctx.translate(Math.round(W/2 - camera.x + ox), Math.round(H/2 - camera.y + oy));
+
+  drawRoomBackground();
+
+  if (gameState === 'playing' && currentRoom) {
+    updatePlayer(dt);
+    updateEnemies(dt);
+    updateProjectiles(dt);
+    updateZones(dt);
+    checkRoomCleared();
+    checkDoorTrigger();
+  }
+  updateParticles(rawDt);
+  updateSlashEffects(rawDt);
+  updateBurstEffects(rawDt);
+  updateImpactEffects(rawDt);
+  updateDamageTexts(rawDt);
+
+  if (currentRoom) { drawDoors(); drawZones(); drawProjectiles(); drawSlashEffects(); drawBurstEffects(); drawImpactEffects(); drawEnemies(); }
+  drawParticles();
+  drawDamageTexts();
+  if (gameState === 'playing' || currentRoom) drawPlayer();
+
+  ctx.restore();
+
+  // effets plein écran (hors tremblement, en espace écran fixe)
+  if (flashAlpha > 0) {
+    ctx.globalAlpha = flashAlpha;
+    ctx.fillStyle = flashColor;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+    flashAlpha -= rawDt * 3;
+    if (flashAlpha < 0) flashAlpha = 0;
+  }
+  if (vignetteAlpha > 0) {
+    const grad = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.75);
+    grad.addColorStop(0, 'rgba(224,56,74,0)');
+    grad.addColorStop(1, 'rgba(224,56,74,'+vignetteAlpha+')');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    vignetteAlpha -= rawDt * 1.6;
+    if (vignetteAlpha < 0) vignetteAlpha = 0;
+  }
+
+  updateHUD();
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
